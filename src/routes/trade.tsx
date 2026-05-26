@@ -1,102 +1,112 @@
 import {createFileRoute} from "@tanstack/react-router";
-import {Card, Button} from "@heroui/react";
+import {Card} from "@heroui/react";
+import {Icon} from "@iconify/react";
+
+import {PairStrip} from "../components/Trade/PairStrip";
+import {CandleChart} from "../components/Trade/CandleChart";
+import {OrderBook} from "../components/Trade/OrderBook";
+import {OrderForm} from "../components/Trade/OrderForm";
+import {PositionsTable} from "../components/Trade/PositionsTable";
+import {useUI} from "../store/ui";
+import {PAIRS} from "../lib/mock/data";
+import {priceFmt, pct, usdCompact} from "../lib/format";
 
 export const Route = createFileRoute("/trade")({
   component: TradePage,
 });
 
-// 4-zone trading layout (chart | orderbook | trade panel | positions).
-// Mirrors Walbi's classical Trade view. Real charting will plug into the
-// TradingView Charting Library (lazy-loaded chunk).
-
 function TradePage() {
+  const pair = useUI((s) => s.currentPair);
+  const pairData = PAIRS.find((p) => p.symbol === pair)!;
+  const up = pairData.change24h >= 0;
+
   return (
-    <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-2 p-2 md:p-4">
-      <div className="grid gap-2 md:grid-cols-[1fr_280px_320px]">
-        <Card className="min-h-[420px] rounded-2xl">
-          <Card.Header className="px-4 pt-3 text-sm text-muted">
-            BTC/USD · 77 235,02 · <span className="text-success">+0,05%</span>
-          </Card.Header>
-          <Card.Content className="flex h-full items-center justify-center p-4 text-muted">
-            [chart placeholder]
-          </Card.Content>
+    <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-2 p-2 md:p-3">
+      <PairStrip />
+
+      {/* Top stat strip */}
+      <div className="hidden items-center gap-6 rounded-2xl bg-surface px-4 py-2 text-xs md:flex">
+        <div>
+          <div className="text-muted">Цена</div>
+          <div className={["text-base font-semibold tabular-nums", up ? "text-success" : "text-danger"].join(" ")}>
+            {priceFmt(pairData.price)}
+          </div>
+        </div>
+        <Stat label="24ч изменение" value={pct(pairData.change24h)} tone={up ? "success" : "danger"} />
+        <Stat label="24ч объём" value={usdCompact(pairData.volume24h)} />
+        <Stat label="Макс. плечо" value={`×${pairData.maxLeverage}`} />
+        <button className="ml-auto flex items-center gap-1 text-muted hover:text-foreground">
+          <Icon icon="gravity-ui:star" className="size-4" />
+          В избранное
+        </button>
+      </div>
+
+      <div className="grid gap-2 md:grid-cols-[1fr_240px_300px]">
+        {/* Chart */}
+        <Card className="overflow-hidden rounded-2xl">
+          <div className="flex items-center gap-1 border-b border-border px-3 py-1.5 text-[11px] text-muted">
+            {["1m", "5m", "15m", "1H", "4H", "1D", "1W"].map((tf) => (
+              <button
+                key={tf}
+                className={[
+                  "rounded px-2 py-0.5 transition-colors",
+                  tf === "1H" ? "bg-surface-secondary text-foreground" : "hover:bg-surface-secondary",
+                ].join(" ")}
+              >
+                {tf}
+              </button>
+            ))}
+            <span className="ml-auto flex items-center gap-2">
+              <button className="rounded p-1 hover:bg-surface-secondary" aria-label="Индикаторы">
+                <Icon icon="gravity-ui:bars-ascending-align-center" className="size-4" />
+              </button>
+              <button className="rounded p-1 hover:bg-surface-secondary" aria-label="Полный экран">
+                <Icon icon="gravity-ui:square-arrow-up-right" className="size-4" />
+              </button>
+            </span>
+          </div>
+          <div className="h-[420px]">
+            <CandleChart pair={pair} height={420} />
+          </div>
         </Card>
 
+        {/* Order book */}
         <Card className="rounded-2xl">
-          <Card.Header className="px-4 pt-3 text-sm text-muted">Стакан</Card.Header>
-          <Card.Content className="space-y-1 p-3 font-mono text-xs">
-            {[0.339, 0.338, 0.337, 0.336, 0.335].map((p) => (
-              <div key={p} className="flex justify-between text-danger">
-                <span>{p.toFixed(3)}</span>
-                <span className="text-muted">7 710,62</span>
-              </div>
-            ))}
-            <div className="my-1 text-center text-success">77 235,02</div>
-            {[0.334, 0.333, 0.332, 0.331, 0.330].map((p) => (
-              <div key={p} className="flex justify-between text-success">
-                <span>{p.toFixed(3)}</span>
-                <span className="text-muted">6 156,50</span>
-              </div>
-            ))}
-          </Card.Content>
+          <div className="flex items-center justify-between px-3 pt-3 text-xs text-muted">
+            <span>Стакан</span>
+            <button className="flex items-center gap-1 text-muted">
+              0.01 <Icon icon="gravity-ui:chevrons-up-down" className="size-3" />
+            </button>
+          </div>
+          <div className="p-2">
+            <OrderBook pair={pair} />
+          </div>
         </Card>
 
+        {/* Order form */}
         <Card className="rounded-2xl">
-          <Card.Header className="px-4 pt-3 text-sm">Открыть позицию</Card.Header>
-          <Card.Content className="space-y-3 p-4 text-sm">
-            <div className="grid grid-cols-2 gap-1 rounded-xl bg-surface-secondary p-1">
-              <button className="rounded-lg bg-surface px-3 py-1.5 text-xs">
-                Рынок
-              </button>
-              <button className="rounded-lg px-3 py-1.5 text-xs text-muted">
-                Лимит
-              </button>
-            </div>
-            <Field label="Сумма" value="0,00" suffix="USDT" />
-            <Field label="Плечо" value="×5" />
-            <div className="flex gap-2 pt-2">
-              <Button variant="primary" fullWidth>
-                Лонг
-              </Button>
-              <Button variant="danger" fullWidth>
-                Шорт
-              </Button>
-            </div>
-          </Card.Content>
+          <div className="border-b border-border px-3 py-2 text-sm">Открыть позицию</div>
+          <div className="p-3">
+            <OrderForm pair={pair} />
+          </div>
         </Card>
       </div>
 
-      <Card className="rounded-2xl">
-        <Card.Header className="px-4 pt-3 text-sm text-muted">Позиции</Card.Header>
-        <Card.Content className="p-4 text-sm text-muted">
-          Открытых позиций нет.
-        </Card.Content>
+      {/* Positions / Orders / History */}
+      <Card className="overflow-hidden rounded-2xl">
+        <PositionsTable />
       </Card>
     </div>
   );
 }
 
-function Field({
-  label,
-  value,
-  suffix,
-}: {
-  label: string;
-  value: string;
-  suffix?: string;
-}) {
+function Stat({label, value, tone}: {label: string; value: string; tone?: "success" | "danger"}) {
   return (
-    <label className="block">
-      <div className="mb-1 text-xs text-muted">{label}</div>
-      <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2">
-        <input
-          defaultValue={value}
-          className="flex-1 bg-transparent text-sm outline-none"
-        />
-        {suffix ? (
-          <span className="text-xs text-muted">{suffix}</span>
-        ) : null}
+    <div>
+      <div className="text-muted">{label}</div>
+      <div className={["font-semibold tabular-nums", tone === "success" ? "text-success" : tone === "danger" ? "text-danger" : ""].join(" ")}>
+        {value}
       </div>
-    </label>
+    </div>
   );
 }

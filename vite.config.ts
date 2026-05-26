@@ -97,8 +97,8 @@ export default defineConfig({
         },
       },
     },
-    // brotli-compatible chunk sizes
-    chunkSizeWarningLimit: 80,
+    // React + framer-motion + react-aria is naturally chunky; cap higher
+    chunkSizeWarningLimit: 200,
   },
   server: {
     port: 5173,

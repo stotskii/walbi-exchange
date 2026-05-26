@@ -56,3 +56,53 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: oklch(0.5 0.01 264 / 0.6);
 }
+
+/* Custom leverage slider — matches Walbi's purple accent */
+.walbi-slider {
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: oklch(0.3 0.005 264);
+  cursor: pointer;
+}
+.walbi-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #aa3bff;
+  box-shadow: 0 0 0 3px oklch(0.22 0.005 264);
+  cursor: grab;
+}
+.walbi-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: #aa3bff;
+  box-shadow: 0 0 0 3px oklch(0.22 0.005 264);
+  cursor: grab;
+}
+
+/* Hide scrollbar on horizontal carousels for cleaner look */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+/* Page transition base — used by route wrappers */
+@keyframes walbi-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.walbi-fade-in {
+  animation: walbi-fade-in 200ms ease-out;
+}
