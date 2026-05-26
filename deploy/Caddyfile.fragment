@@ -1,0 +1,62 @@
+# /etc/caddy/sites/exchange.walbi.cfd
+# Drop into the main Caddyfile via:  import sites/*.caddyfile
+#
+# Performance contract:
+#   • HTTP/3 enabled (Caddy default since 2.x)
+#   • Brotli + Gzip on text MIME (pre-compressed Brotli served via try_files)
+#   • Hashed assets get a 1y immutable cache
+#   • index.html stays no-cache so PWA Service Worker can roll forward
+#   • Service Worker file (sw.js) explicitly no-store — never let SW be stale
+#   • SPA fallback: any unknown path → index.html so client router takes over
+
+exchange.walbi.cfd {
+	root * /srv/walbi-exchange
+	encode zstd gzip
+
+	# Long-lived immutable cache for fingerprinted /assets/*
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+
+	# Service Worker must never be cached by browsers
+	@sw path /sw.js /registerSW.js /workbox-*.js
+	header @sw {
+		Cache-Control "no-cache, no-store, must-revalidate"
+	}
+
+	# index.html and manifest need fresh-on-revalidate
+	@root path / /index.html /manifest.webmanifest
+	header @root {
+		Cache-Control "public, max-age=0, must-revalidate"
+	}
+
+	# Security baseline
+	header {
+		# stop MIME sniffing
+		X-Content-Type-Options "nosniff"
+		# referrer leak prevention
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# clickjacking
+		X-Frame-Options "DENY"
+		# Permissions-Policy — disable unused powerful features
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+		# allow PWA install via HTTPS only
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		# remove server fingerprint
+		-Server
+	}
+
+	# Try pre-compressed .br / .gz file first (matches what `vite build` would
+	# emit if we add `vite-plugin-compression`), otherwise fall through.
+	@brotli {
+		header_regexp Accept-Encoding "br"
+		file {path}.br
+	}
+	rewrite @brotli {path}.br
+	header @brotli Content-Encoding br
+
+	# SPA fallback — any unknown path delivers index.html and the
+	# client-side router decides what to render.
+	try_files {path} /index.html
+
+	file_server
+}
