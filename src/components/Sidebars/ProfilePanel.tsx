@@ -2,20 +2,33 @@ import {Icon} from "@iconify/react";
 import {Card, Button} from "@heroui/react";
 import {PanelChrome} from "./PanelChrome";
 import {AgentAvatar} from "../AIHub/AgentAvatar";
+import {useToasts} from "../../store/toast";
 
-const MENU = [
-  {icon: "gravity-ui:person", label: "Аккаунт"},
-  {icon: "gravity-ui:shield-check", label: "Безопасность", hint: "2FA выключен", warn: true},
-  {icon: "gravity-ui:identification", label: "Верификация (KYC)", hint: "Не пройдена"},
-  {icon: "gravity-ui:key", label: "API-ключи"},
-  {icon: "gravity-ui:globe", label: "Язык", hint: "Русский"},
-  {icon: "gravity-ui:moon", label: "Тема", hint: "Тёмная"},
-  {icon: "gravity-ui:gear", label: "Настройки торговли"},
-  {icon: "gravity-ui:circle-question", label: "Помощь и обратная связь"},
-  {icon: "gravity-ui:arrow-right-from-square", label: "Выйти", danger: true},
+interface MenuItem {
+  icon: string;
+  label: string;
+  hint?: string;
+  warn?: boolean;
+  danger?: boolean;
+  toastTitle?: string;
+  toastBody?: string;
+}
+
+const MENU: MenuItem[] = [
+  {icon: "gravity-ui:person", label: "Аккаунт", toastTitle: "Управление аккаунтом", toastBody: "Раздел в разработке"},
+  {icon: "gravity-ui:shield-check", label: "Безопасность", hint: "2FA выключен", warn: true, toastTitle: "Включи 2FA", toastBody: "Защити аккаунт за 30 секунд через Google Authenticator"},
+  {icon: "gravity-ui:identification", label: "Верификация (KYC)", hint: "Не пройдена", toastTitle: "Пройди KYC", toastBody: "Доступ к выводам > $1000/день требует верификации"},
+  {icon: "gravity-ui:key", label: "API-ключи", toastTitle: "API-ключи", toastBody: "Создание ключей в разработке"},
+  {icon: "gravity-ui:globe", label: "Язык", hint: "Русский", toastTitle: "Язык интерфейса", toastBody: "Доступно: Русский, English"},
+  {icon: "gravity-ui:moon", label: "Тема", hint: "Тёмная", toastTitle: "Тема", toastBody: "Светлая тема в разработке"},
+  {icon: "gravity-ui:gear", label: "Настройки торговли", toastTitle: "Настройки торговли", toastBody: "Скоро: видимость стакана, дефолтное плечо, подтверждения"},
+  {icon: "gravity-ui:circle-question", label: "Помощь и обратная связь", toastTitle: "Поддержка", toastBody: "Напиши в Telegram @walbicom или открой чат поддержки"},
+  {icon: "gravity-ui:arrow-right-from-square", label: "Выйти", danger: true, toastTitle: "Сессия завершена", toastBody: "Заглушка — в demo нет авторизации"},
 ];
 
 export function ProfilePanel() {
+  const push = useToasts((s) => s.push);
+
   return (
     <PanelChrome title="Профиль">
       <div className="space-y-4 p-4">
@@ -40,7 +53,12 @@ export function ProfilePanel() {
               <span className="font-semibold">Walbi Pro</span>
               <span className="text-xs text-muted">до 24.06.2026</span>
             </div>
-            <Button variant="outline" size="sm" fullWidth>
+            <Button
+              variant="outline"
+              size="sm"
+              fullWidth
+              onPress={() => push({title: "Управление подпиской", description: "Раздел в разработке", tone: "info"})}
+            >
               Управлять подпиской
             </Button>
           </Card.Content>
@@ -51,6 +69,13 @@ export function ProfilePanel() {
             {MENU.map((m) => (
               <button
                 key={m.label}
+                onClick={() =>
+                  push({
+                    title: m.toastTitle ?? m.label,
+                    description: m.toastBody,
+                    tone: m.danger ? "danger" : m.warn ? "info" : "info",
+                  })
+                }
                 className={[
                   "flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-surface-secondary",
                   m.danger ? "text-danger" : "",

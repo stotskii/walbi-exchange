@@ -3,6 +3,9 @@ import {Button} from "@heroui/react";
 import {Icon} from "@iconify/react";
 
 import {ASSETS, SUB_ACCOUNTS} from "../../lib/mock/data";
+import {useBalances} from "../../store/balances";
+import {useToasts} from "../../store/toast";
+import type {SubAccount} from "../../lib/mock/types";
 
 export type WalletAction = "deposit" | "withdraw" | "transfer" | "swap";
 
@@ -33,21 +36,53 @@ export function ActionModal({
           </button>
         </header>
         <div className="overflow-y-auto p-4">
-          {action === "deposit" ? <DepositForm /> : null}
-          {action === "withdraw" ? <WithdrawForm /> : null}
-          {action === "transfer" ? <TransferForm /> : null}
-          {action === "swap" ? <SwapForm /> : null}
+          {action === "deposit" ? <DepositForm onClose={onClose} /> : null}
+          {action === "withdraw" ? <WithdrawForm onClose={onClose} /> : null}
+          {action === "transfer" ? <TransferForm onClose={onClose} /> : null}
+          {action === "swap" ? <SwapForm onClose={onClose} /> : null}
         </div>
       </div>
     </div>
   );
 }
 
-function DepositForm() {
+function DepositForm({onClose}: {onClose: () => void}) {
   const [method, setMethod] = useState<"fiat" | "crypto">("crypto");
   const [asset, setAsset] = useState("USDT");
   const [network, setNetwork] = useState("TRC20");
-  const [credit, setCredit] = useState<typeof SUB_ACCOUNTS[number]["id"]>("funding");
+  const [credit, setCredit] = useState<SubAccount["id"]>("funding");
+  const [fiatAmount, setFiatAmount] = useState("100");
+  const [pending, setPending] = useState(false);
+
+  const add = useBalances((s) => s.add);
+  const push = useToasts((s) => s.push);
+
+  function payFiat() {
+    const amt = parseFloat(fiatAmount) || 0;
+    if (amt < 10) {
+      push({tone: "danger", title: "Минимум $10", description: "Введи сумму побольше"});
+      return;
+    }
+    setPending(true);
+    window.setTimeout(() => {
+      add(credit, amt);
+      push({
+        tone: "success",
+        title: "Депозит зачислен",
+        description: `$${amt.toFixed(2)} на ${SUB_ACCOUNTS.find((s) => s.id === credit)?.name}`,
+      });
+      setPending(false);
+      onClose();
+    }, 700);
+  }
+
+  function copyAddress() {
+    const addr = "TXxJzKqsdfg9D8pVwHrTLY3hZmN5cR4kF6";
+    navigator.clipboard.writeText(addr).then(
+      () => push({tone: "success", title: "Адрес скопирован", ttl: 2000}),
+      () => push({tone: "danger", title: "Не получилось", description: "Скопируй вручную"}),
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -97,7 +132,7 @@ function DepositForm() {
           <Field label="Зачислить на">
             <select
               value={credit}
-              onChange={(e) => setCredit(e.target.value as typeof credit)}
+              onChange={(e) => setCredit(e.target.value as SubAccount["id"])}
               className="w-full bg-transparent text-sm outline-none"
             >
               {SUB_ACCOUNTS.filter((s) => s.actions.includes("deposit")).map((s) => (
@@ -113,7 +148,7 @@ function DepositForm() {
             <div className="mt-3 break-all font-mono text-xs text-muted">
               TXxJzKqsdfg9D8pVwHrTLY3hZmN5cR4kF6
             </div>
-            <button className="mt-2 text-xs text-accent hover:underline">
+            <button onClick={copyAddress} className="mt-2 text-xs text-accent hover:underline">
               Копировать адрес
             </button>
           </div>
@@ -122,22 +157,59 @@ function DepositForm() {
             Минимальный депозит: <b>10 USDT</b>. Зачисление после 6 подтверждений сети.
             Не отправляй другие активы — будут потеряны.
           </p>
+
+          <Button
+            variant="outline"
+            fullWidth
+            onPress={() => {
+              add(credit, asset === "USDT" ? 100 : 0.1);
+              push({
+                tone: "success",
+                title: "Симулирован депозит",
+                description: `+${asset === "USDT" ? "100" : "0.1"} ${asset} на ${SUB_ACCOUNTS.find((s) => s.id === credit)?.name}`,
+              });
+              onClose();
+            }}
+          >
+            <Icon icon="gravity-ui:bolt" className="mr-1.5 size-3.5" />
+            Симулировать получение
+          </Button>
         </>
       ) : (
         <>
           <Field label="Сумма">
             <input
-              defaultValue="100"
+              value={fiatAmount}
+              onChange={(e) => setFiatAmount(e.target.value)}
               className="flex-1 bg-transparent text-sm outline-none"
               inputMode="decimal"
             />
             <span className="text-xs text-muted">USD</span>
           </Field>
+
+          <Field label="Зачислить на">
+            <select
+              value={credit}
+              onChange={(e) => setCredit(e.target.value as SubAccount["id"])}
+              className="w-full bg-transparent text-sm outline-none"
+            >
+              {SUB_ACCOUNTS.filter((s) => s.actions.includes("deposit")).map((s) => (
+                <option key={s.id} value={s.id} className="bg-background">{s.name}</option>
+              ))}
+            </select>
+          </Field>
+
           <p className="text-[10px] text-muted">
             Платёж через <b>Onramper</b>. Комиссия 1,5%. Зачисление мгновенно после оплаты.
           </p>
-          <Button variant="primary" fullWidth>
-            Перейти к оплате
+          <Button
+            variant="primary"
+            fullWidth
+            isPending={pending}
+            isDisabled={pending}
+            onPress={payFiat}
+          >
+            {pending ? "Обработка…" : "Перейти к оплате"}
           </Button>
         </>
       )}
@@ -145,9 +217,52 @@ function DepositForm() {
   );
 }
 
-function WithdrawForm() {
+function WithdrawForm({onClose}: {onClose: () => void}) {
+  const [from, setFrom] = useState<SubAccount["id"]>("funding");
+  const [address, setAddress] = useState("");
+  const [amount, setAmount] = useState("0");
+  const [pending, setPending] = useState(false);
+
+  const balances = useBalances((s) => s.accounts);
+  const withdraw = useBalances((s) => s.withdraw);
+  const push = useToasts((s) => s.push);
+
+  const available = balances[from];
+  const num = parseFloat(amount) || 0;
+  const fee = 1;
+  const receive = Math.max(0, num - fee);
+  const valid = num > 0 && num <= available && address.trim().length > 8;
+
+  function submit() {
+    if (!valid) return;
+    setPending(true);
+    window.setTimeout(() => {
+      withdraw(from, num);
+      push({
+        tone: "success",
+        title: "Заявка на вывод создана",
+        description: `${receive.toFixed(2)} USDT → ${address.slice(0, 8)}…`,
+      });
+      setPending(false);
+      onClose();
+    }, 800);
+  }
+
   return (
     <div className="space-y-4">
+      <Field label="Откуда">
+        <select
+          value={from}
+          onChange={(e) => setFrom(e.target.value as SubAccount["id"])}
+          className="w-full bg-transparent text-sm outline-none"
+        >
+          {SUB_ACCOUNTS.filter((s) => s.actions.includes("withdraw")).map((s) => (
+            <option key={s.id} value={s.id} className="bg-background">
+              {s.name} — {balances[s.id].toFixed(2)} USDT
+            </option>
+          ))}
+        </select>
+      </Field>
       <Field label="Актив">
         <span className="text-sm">USDT · Tether</span>
       </Field>
@@ -156,43 +271,84 @@ function WithdrawForm() {
       </Field>
       <Field label="Адрес получателя">
         <input
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
           placeholder="TXxJz..."
-          className="flex-1 bg-transparent text-sm outline-none"
+          className="flex-1 bg-transparent font-mono text-xs outline-none"
         />
       </Field>
       <Field label="Сумма">
         <input
-          defaultValue="0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
           className="flex-1 bg-transparent text-sm outline-none"
           inputMode="decimal"
         />
-        <button className="text-xs text-accent">Макс.</button>
+        <button className="text-xs text-accent" onClick={() => setAmount(String(available))}>Макс.</button>
       </Field>
       <div className="space-y-1 rounded-xl border border-border bg-surface p-3 text-xs">
-        <Row k="Доступно" v="95 963,73 USDT" />
-        <Row k="Сетевая комиссия" v="1 USDT" />
-        <Row k="К получению" v="—" />
+        <Row k="Доступно" v={`${available.toFixed(2)} USDT`} />
+        <Row k="Сетевая комиссия" v={`${fee} USDT`} />
+        <Row k="К получению" v={receive > 0 ? `${receive.toFixed(2)} USDT` : "—"} />
       </div>
-      <Button variant="primary" fullWidth>
-        Вывести
+      {num > available ? (
+        <p className="rounded-lg border border-warning/30 bg-warning/5 px-2 py-1.5 text-[11px] text-warning">
+          Недостаточно средств
+        </p>
+      ) : null}
+      <Button
+        variant="primary"
+        fullWidth
+        isDisabled={!valid || pending}
+        isPending={pending}
+        onPress={submit}
+      >
+        {pending ? "Отправляю…" : "Вывести"}
       </Button>
     </div>
   );
 }
 
-function TransferForm() {
-  const [from, setFrom] = useState<typeof SUB_ACCOUNTS[number]["id"]>("funding");
-  const [to, setTo] = useState<typeof SUB_ACCOUNTS[number]["id"]>("trading");
+function TransferForm({onClose}: {onClose: () => void}) {
+  const [from, setFrom] = useState<SubAccount["id"]>("funding");
+  const [to, setTo] = useState<SubAccount["id"]>("trading");
+  const [amount, setAmount] = useState("0");
+  const [pending, setPending] = useState(false);
+
+  const balances = useBalances((s) => s.accounts);
+  const transfer = useBalances((s) => s.transfer);
+  const push = useToasts((s) => s.push);
+
+  const num = parseFloat(amount) || 0;
+  const valid = num > 0 && num <= balances[from] && from !== to;
+
+  function submit() {
+    if (!valid) return;
+    setPending(true);
+    window.setTimeout(() => {
+      transfer(from, to, num);
+      push({
+        tone: "success",
+        title: "Перевод выполнен",
+        description: `${num.toFixed(2)} USDT · ${SUB_ACCOUNTS.find((s) => s.id === from)?.name} → ${SUB_ACCOUNTS.find((s) => s.id === to)?.name}`,
+      });
+      setPending(false);
+      onClose();
+    }, 500);
+  }
+
   return (
     <div className="space-y-4">
       <Field label="Откуда">
         <select
           value={from}
-          onChange={(e) => setFrom(e.target.value as typeof from)}
+          onChange={(e) => setFrom(e.target.value as SubAccount["id"])}
           className="w-full bg-transparent text-sm outline-none"
         >
           {SUB_ACCOUNTS.map((s) => (
-            <option key={s.id} value={s.id} className="bg-background">{s.name}</option>
+            <option key={s.id} value={s.id} className="bg-background">
+              {s.name} — {balances[s.id].toFixed(2)} USDT
+            </option>
           ))}
         </select>
       </Field>
@@ -212,7 +368,7 @@ function TransferForm() {
       <Field label="Куда">
         <select
           value={to}
-          onChange={(e) => setTo(e.target.value as typeof to)}
+          onChange={(e) => setTo(e.target.value as SubAccount["id"])}
           className="w-full bg-transparent text-sm outline-none"
         >
           {SUB_ACCOUNTS.map((s) => (
@@ -222,24 +378,67 @@ function TransferForm() {
       </Field>
       <Field label="Сумма">
         <input
-          defaultValue="0"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
           className="flex-1 bg-transparent text-sm outline-none"
           inputMode="decimal"
         />
         <span className="text-xs text-muted">USDT</span>
       </Field>
-      <Button variant="primary" fullWidth>
-        Перевести
+      {from === to ? (
+        <p className="rounded-lg border border-warning/30 bg-warning/5 px-2 py-1.5 text-[11px] text-warning">
+          Выбери разные счета
+        </p>
+      ) : null}
+      <Button
+        variant="primary"
+        fullWidth
+        isDisabled={!valid || pending}
+        isPending={pending}
+        onPress={submit}
+      >
+        {pending ? "Перевожу…" : "Перевести"}
       </Button>
     </div>
   );
 }
 
-function SwapForm() {
+function SwapForm({onClose}: {onClose: () => void}) {
+  const [fromAsset, setFromAsset] = useState("USDT");
+  const [toAsset, setToAsset] = useState("BTC");
+  const [amount, setAmount] = useState("100");
+  const [pending, setPending] = useState(false);
+
+  const push = useToasts((s) => s.push);
+
+  const fromPrice = ASSETS.find((a) => a.symbol === fromAsset)?.priceUsd ?? 1;
+  const toPrice = ASSETS.find((a) => a.symbol === toAsset)?.priceUsd ?? 1;
+  const num = parseFloat(amount) || 0;
+  const out = (num * fromPrice) / toPrice;
+  const valid = num > 0 && fromAsset !== toAsset;
+
+  function submit() {
+    if (!valid) return;
+    setPending(true);
+    window.setTimeout(() => {
+      push({
+        tone: "success",
+        title: "Своп исполнен",
+        description: `${num.toFixed(4)} ${fromAsset} → ${out.toFixed(6)} ${toAsset}`,
+      });
+      setPending(false);
+      onClose();
+    }, 600);
+  }
+
   return (
     <div className="space-y-4">
       <Field label="Из">
-        <select className="w-full bg-transparent text-sm outline-none">
+        <select
+          value={fromAsset}
+          onChange={(e) => setFromAsset(e.target.value)}
+          className="w-full bg-transparent text-sm outline-none"
+        >
           {ASSETS.map((a) => (
             <option key={a.symbol} value={a.symbol} className="bg-background">{a.symbol}</option>
           ))}
@@ -247,31 +446,57 @@ function SwapForm() {
       </Field>
       <Field label="Сумма">
         <input
-          defaultValue="100"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
           className="flex-1 bg-transparent text-sm outline-none"
           inputMode="decimal"
         />
       </Field>
       <div className="flex justify-center">
-        <Icon icon="gravity-ui:arrow-down" className="size-5 text-muted" />
+        <button
+          onClick={() => {
+            const tmp = fromAsset;
+            setFromAsset(toAsset);
+            setToAsset(tmp);
+          }}
+          className="grid size-9 place-items-center rounded-full bg-surface-secondary hover:bg-surface"
+          aria-label="Поменять"
+        >
+          <Icon icon="gravity-ui:arrow-down" className="size-4" />
+        </button>
       </div>
       <Field label="В">
-        <select className="w-full bg-transparent text-sm outline-none" defaultValue="BTC">
+        <select
+          value={toAsset}
+          onChange={(e) => setToAsset(e.target.value)}
+          className="w-full bg-transparent text-sm outline-none"
+        >
           {ASSETS.map((a) => (
             <option key={a.symbol} value={a.symbol} className="bg-background">{a.symbol}</option>
           ))}
         </select>
       </Field>
       <Field label="Получишь">
-        <span className="text-sm tabular-nums">≈ 0,00130 BTC</span>
+        <span className="text-sm tabular-nums">≈ {out.toFixed(6)} {toAsset}</span>
       </Field>
       <div className="space-y-1 rounded-xl border border-border bg-surface p-3 text-xs">
-        <Row k="Курс" v="1 USDT ≈ 0,0000130 BTC" />
+        <Row k="Курс" v={`1 ${fromAsset} ≈ ${(fromPrice / toPrice).toFixed(6)} ${toAsset}`} />
         <Row k="Комиссия" v="0,1%" />
         <Row k="Проскальзывание" v="≤ 0,5%" />
       </div>
-      <Button variant="primary" fullWidth>
-        Свопнуть
+      {fromAsset === toAsset ? (
+        <p className="rounded-lg border border-warning/30 bg-warning/5 px-2 py-1.5 text-[11px] text-warning">
+          Выбери разные активы
+        </p>
+      ) : null}
+      <Button
+        variant="primary"
+        fullWidth
+        isDisabled={!valid || pending}
+        isPending={pending}
+        onPress={submit}
+      >
+        {pending ? "Свопаю…" : "Свопнуть"}
       </Button>
     </div>
   );

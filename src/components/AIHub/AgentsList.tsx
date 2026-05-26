@@ -3,15 +3,14 @@ import {Icon} from "@iconify/react";
 
 import {AGENTS} from "../../lib/mock/data";
 import {useUI} from "../../store/ui";
+import {useToasts} from "../../store/toast";
 import {AgentAvatar} from "./AgentAvatar";
 import {usd, pct} from "../../lib/format";
-
-// Left rail: agents list with pin/follow state. Clicking a card selects the
-// agent for the right panel; clicking "Marketplace" opens that route.
 
 export function AgentsList() {
   const setSelectedAgent = useUI((s) => s.setSelectedAgent);
   const selected = useUI((s) => s.selectedAgent);
+  const push = useToasts((s) => s.push);
   const pinned = AGENTS.filter((a) => a.pinned);
   const others = AGENTS.filter((a) => !a.pinned);
 
@@ -21,14 +20,24 @@ export function AgentsList() {
         <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">
           Мои агенты
         </h2>
-        <button className="rounded p-1 text-muted hover:bg-surface-secondary" aria-label="Маркетплейс">
+        <button
+          onClick={() => push({title: "Маркетплейс агентов", description: "Раздел в разработке", tone: "info"})}
+          className="rounded p-1 text-muted hover:bg-surface-secondary"
+          aria-label="Маркетплейс"
+          title="Маркетплейс"
+        >
           <Icon icon="gravity-ui:layout-cards" className="size-4" />
         </button>
       </div>
 
       <Card className="rounded-2xl">
         <Card.Content className="p-2">
-          <Button variant="primary" fullWidth size="sm">
+          <Button
+            variant="primary"
+            fullWidth
+            size="sm"
+            onPress={() => push({title: "Создать нового агента", description: "3-шаговый мастер в разработке", tone: "info"})}
+          >
             <Icon icon="gravity-ui:plus" className="mr-1.5" />
             Создать нового агента
           </Button>

@@ -5,11 +5,13 @@ import {Icon} from "@iconify/react";
 import {AIRDROPS, EARN_TASKS} from "../../lib/mock/data";
 import {usd} from "../../lib/format";
 import {useUI} from "../../store/ui";
+import {useToasts} from "../../store/toast";
 import {PanelChrome} from "./PanelChrome";
 
 export function EarnHub() {
   const drill = useUI((s) => s.drillPanel);
   const setAirdrop = useUI((s) => s.setSelectedAirdropId);
+  const push = useToasts((s) => s.push);
   return (
     <PanelChrome title="Экшены">
       <div className="space-y-5 p-4">
@@ -41,7 +43,12 @@ export function EarnHub() {
               <p className="text-xs text-muted">
                 Будущий ты скажет тебе спасибо за это. Сделай свой первый депозит.
               </p>
-              <Button variant="primary" size="sm" fullWidth>
+              <Button
+                variant="primary"
+                size="sm"
+                fullWidth
+                onPress={() => push({title: "Сделай первый депозит", description: "Открой Кошелёк → Депозит", tone: "info"})}
+              >
                 Получить награду
               </Button>
             </Card.Content>
@@ -53,6 +60,25 @@ export function EarnHub() {
 }
 
 export function EarnReferral() {
+  const push = useToasts((s) => s.push);
+  const code = "8a131f";
+  const link = "https://walbi.com/r/" + code;
+
+  function copy(text: string, label: string) {
+    navigator.clipboard.writeText(text).then(
+      () => push({title: `${label} скопирован`, tone: "success", ttl: 2000}),
+      () => push({title: "Не удалось скопировать", tone: "danger"}),
+    );
+  }
+
+  function share() {
+    if ("share" in navigator) {
+      navigator.share({title: "Walbi", text: "Присоединяйся к Walbi", url: link}).catch(() => {});
+    } else {
+      copy(link, "Ссылка");
+    }
+  }
+
   return (
     <PanelChrome title="Реферальная программа" showBack>
       <div className="space-y-4 p-4">
@@ -66,8 +92,8 @@ export function EarnReferral() {
             <div>
               <div className="mb-1 text-xs text-muted">Реферальный код</div>
               <div className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2">
-                <span className="flex-1 font-mono text-base">8a131f</span>
-                <Button variant="ghost" size="sm">
+                <span className="flex-1 font-mono text-base">{code}</span>
+                <Button variant="ghost" size="sm" onPress={() => copy(code, "Код")}>
                   <Icon icon="gravity-ui:copy" className="mr-1" />
                   Копировать
                 </Button>
@@ -78,9 +104,9 @@ export function EarnReferral() {
               <div className="mb-1 text-xs text-muted">Реферальная ссылка</div>
               <div className="flex items-center gap-2 rounded-xl bg-surface px-3 py-2">
                 <span className="flex-1 truncate font-mono text-xs text-muted">
-                  walbi.com/r/8a131f
+                  walbi.com/r/{code}
                 </span>
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" onPress={share}>
                   Поделиться
                 </Button>
               </div>
@@ -128,14 +154,31 @@ export function EarnReferral() {
 }
 
 export function EarnMiner() {
+  const push = useToasts((s) => s.push);
+  const [mining, setMining] = useState(false);
+
   return (
     <PanelChrome title="Майнер" showBack>
       <div className="grid place-items-center p-10 text-center">
-        <Icon icon="gravity-ui:hammer" className="size-12 text-muted" />
+        <Icon
+          icon="gravity-ui:hammer"
+          className={["size-12", mining ? "animate-pulse text-accent" : "text-muted"].join(" ")}
+        />
         <div className="mt-3 text-3xl font-bold tabular-nums">0</div>
-        <div className="text-xs text-muted">добытых баллов</div>
-        <Button variant="primary" className="mt-6">
-          Начать майнинг
+        <div className="text-xs text-muted">{mining ? "добывается…" : "добытых баллов"}</div>
+        <Button
+          variant={mining ? "danger-soft" : "primary"}
+          className="mt-6"
+          onPress={() => {
+            setMining((v) => !v);
+            push({
+              title: mining ? "Майнинг остановлен" : "Майнинг запущен",
+              description: mining ? undefined : "PTS будут начисляться каждый час активной торговли",
+              tone: mining ? "info" : "success",
+            });
+          }}
+        >
+          {mining ? "Остановить" : "Начать майнинг"}
         </Button>
         <p className="mt-3 max-w-xs text-[10px] text-muted">
           Майнер начисляет PTS пассивно за каждый час активной торговли.
@@ -147,6 +190,7 @@ export function EarnMiner() {
 }
 
 export function EarnVouchers() {
+  const push = useToasts((s) => s.push);
   return (
     <PanelChrome title="Ваучеры" showBack>
       <div className="p-4 text-sm">
@@ -156,7 +200,18 @@ export function EarnVouchers() {
               Ваучер позволяет получить возврат торговых комиссий прямо на ваш
               торговый баланс.
             </p>
-            <Button variant="outline" fullWidth>
+            <Button
+              variant="outline"
+              fullWidth
+              onPress={() =>
+                push({
+                  title: "Как работают ваучеры?",
+                  description: "Каждая сделка генерирует 10% возврата комиссии. Ваучеры активны 30 дней.",
+                  tone: "info",
+                  ttl: 6000,
+                })
+              }
+            >
               Как работают ваучеры?
             </Button>
           </Card.Content>
@@ -239,6 +294,7 @@ export function EarnAirdropDetail() {
 
 export function EarnTasks() {
   const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+  const push = useToasts((s) => s.push);
   const tasks = EARN_TASKS.filter((t) => filter === "all" || t.status === filter);
 
   return (
@@ -279,7 +335,13 @@ export function EarnTasks() {
                 </div>
                 <div className="text-right">
                   {t.cta ? (
-                    <Button variant="primary" size="sm">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onPress={() =>
+                        push({title: t.title, description: "Выполни задачу чтобы получить награду", tone: "info"})
+                      }
+                    >
                       {t.cta}
                     </Button>
                   ) : (

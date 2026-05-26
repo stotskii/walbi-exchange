@@ -3,11 +3,14 @@ import {createFileRoute} from "@tanstack/react-router";
 import {Card, Button} from "@heroui/react";
 import {Icon} from "@iconify/react";
 
-import {ASSETS, SUB_ACCOUNTS, TOTAL_USD} from "../lib/mock/data";
+import {ASSETS, SUB_ACCOUNTS} from "../lib/mock/data";
 import {usd, pct} from "../lib/format";
 import {DistributionDonut} from "../components/Wallet/DistributionDonut";
 import {ActionModal, type WalletAction} from "../components/Wallet/ActionModal";
 import {useUI} from "../store/ui";
+import {useBalances} from "../store/balances";
+import {useToasts} from "../store/toast";
+import type {SubAccount} from "../lib/mock/types";
 
 export const Route = createFileRoute("/wallet")({
   component: WalletPage,
@@ -28,9 +31,19 @@ function WalletPage() {
   const [action, setAction] = useState<WalletAction | null>(null);
   const hideBalances = useUI((s) => s.hideBalances);
   const toggleHide = useUI((s) => s.toggleHideBalances);
+  const balances = useBalances((s) => s.accounts);
+  const push = useToasts((s) => s.push);
 
+  const totalUsd = Object.values(balances).reduce((s, v) => s + v, 0);
   const dayDelta = -87.03;
   const dayDeltaPct = -0.0009;
+
+  // Sub-accounts with live balances from the store
+  const accounts: SubAccount[] = SUB_ACCOUNTS.map((a) => ({
+    ...a,
+    balance: balances[a.id],
+    shareUsd: totalUsd > 0 ? balances[a.id] / totalUsd : 0,
+  }));
 
   const assets = ASSETS.filter((a) => {
     if (!showSmall && a.balance * a.priceUsd < 1) return false;
@@ -42,7 +55,12 @@ function WalletPage() {
     <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-4 p-4">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold tracking-tight">Кошелек</h1>
-        <button className="rounded-lg p-1.5 text-muted hover:bg-surface-secondary" aria-label="История">
+        <button
+          onClick={() => push({title: "История операций", description: "Раздел в разработке", tone: "info"})}
+          className="rounded-lg p-1.5 text-muted hover:bg-surface-secondary"
+          aria-label="История"
+          title="История"
+        >
           <Icon icon="gravity-ui:clock" className="size-5" />
         </button>
       </header>
@@ -80,7 +98,7 @@ function WalletPage() {
             </div>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-3xl font-semibold tabular-nums">
-                {hideBalances ? "•••• ••" : usd(TOTAL_USD)}
+                {hideBalances ? "•••• ••" : usd(totalUsd)}
               </span>
               <select className="bg-transparent text-sm text-muted outline-none">
                 <option>USD</option>
@@ -101,7 +119,7 @@ function WalletPage() {
           </div>
 
           <div className="hidden md:block">
-            <DistributionDonut accounts={SUB_ACCOUNTS} />
+            <DistributionDonut accounts={accounts} />
           </div>
         </Card.Content>
       </Card>
@@ -111,22 +129,28 @@ function WalletPage() {
           Распределение
         </h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {SUB_ACCOUNTS.map((acc) => (
-            <Card key={acc.id} className="cursor-pointer rounded-2xl transition-colors hover:bg-surface-secondary">
-              <Card.Content className="p-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-2">
-                    <span className="inline-block size-2.5 rounded-full" style={{backgroundColor: acc.color}} />
-                    {acc.name}
-                  </span>
-                  <Icon icon="gravity-ui:chevron-right" className="size-3.5 text-muted" />
-                </div>
-                <div className="mt-2 text-lg font-semibold tabular-nums">
-                  {hideBalances ? "••••" : `${usd(acc.balance)} $`}
-                </div>
-                <div className="text-xs text-muted">{(acc.shareUsd * 100).toFixed(2)} %</div>
-              </Card.Content>
-            </Card>
+          {accounts.map((acc) => (
+            <button
+              key={acc.id}
+              onClick={() => setTab(acc.id)}
+              className="text-left"
+            >
+              <Card className="rounded-2xl transition-colors hover:bg-surface-secondary">
+                <Card.Content className="p-3">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block size-2.5 rounded-full" style={{backgroundColor: acc.color}} />
+                      {acc.name}
+                    </span>
+                    <Icon icon="gravity-ui:chevron-right" className="size-3.5 text-muted" />
+                  </div>
+                  <div className="mt-2 text-lg font-semibold tabular-nums">
+                    {hideBalances ? "••••" : `${usd(acc.balance)} $`}
+                  </div>
+                  <div className="text-xs text-muted">{(acc.shareUsd * 100).toFixed(2)} %</div>
+                </Card.Content>
+              </Card>
+            </button>
           ))}
         </div>
       </section>
@@ -143,7 +167,7 @@ function WalletPage() {
             />
             Скрыть небольшие балансы
           </label>
-          <label className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-surface px-3 py-1.5 text-sm md:max-w-xs md:ml-auto">
+          <label className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-surface px-3 py-1.5 text-sm md:ml-auto md:max-w-xs">
             <Icon icon="gravity-ui:magnifier" className="size-4 text-muted" />
             <input
               value={search}

@@ -1,12 +1,12 @@
-import {Link, useLocation} from "@tanstack/react-router";
+import {Link, useLocation, useNavigate} from "@tanstack/react-router";
 import {Button} from "@heroui/react";
 import {Icon} from "@iconify/react";
 
 import {useUI} from "../../store/ui";
+import {useToasts} from "../../store/toast";
 
-// Desktop topbar (hidden on mobile). Matches Walbi's 7-button paradigm:
-// AI хаб / Сигналы / Торговля / Мемепул / Прогнозы / Депозит / Кошелек
-// Plus topbar icons: Earn / Inbox / AppStores / Profile.
+// Desktop topbar. Matches Walbi's 6-button paradigm plus deposit CTA and
+// topbar icons (Earn / Inbox / AppStores / Profile).
 
 const NAV = [
   {to: "/", label: "AI хаб"},
@@ -20,6 +20,22 @@ const NAV = [
 export function Topbar() {
   const {pathname} = useLocation();
   const openPanel = useUI((s) => s.openPanel);
+  const navigate = useNavigate();
+  const push = useToasts((s) => s.push);
+
+  function depositCta() {
+    if (pathname === "/wallet") {
+      // already on wallet — nudge user to action button
+      push({title: "Жми «Депозит» в карточке баланса ↓", tone: "info", ttl: 3000});
+      return;
+    }
+    navigate({to: "/wallet"}).then(() => {
+      // Wallet auto-opens via URL param convention; for simplicity we just
+      // route there and the user clicks the deposit chip. Could push a
+      // global "openWalletAction" event but keeping it minimal.
+      push({title: "Нажми «Депозит» в карточке баланса", tone: "info", ttl: 3000});
+    });
+  }
 
   return (
     <header className="sticky top-0 z-30 hidden h-14 shrink-0 border-b border-border bg-background/85 backdrop-blur md:flex">
@@ -56,7 +72,7 @@ export function Topbar() {
           })}
         </nav>
 
-        <Button variant="primary" size="sm" className="ml-3">
+        <Button variant="primary" size="sm" className="ml-3" onPress={depositCta}>
           <Icon icon="gravity-ui:arrow-down-to-line" className="mr-1.5" />
           Депозит
         </Button>

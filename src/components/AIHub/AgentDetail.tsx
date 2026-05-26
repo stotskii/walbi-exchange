@@ -2,20 +2,22 @@ import {Card, Button} from "@heroui/react";
 import {Icon} from "@iconify/react";
 
 import {useUI} from "../../store/ui";
+import {useToasts} from "../../store/toast";
 import {AGENTS} from "../../lib/mock/data";
 import {AgentAvatar} from "./AgentAvatar";
 import {usd, pct, num} from "../../lib/format";
 
 // Right rail: details of the selected agent (or overview if none selected).
-// Includes the "Traffic Light" daily P/L card pattern from the audit.
 
 export function AgentDetail() {
   const agent = useUI((s) => s.selectedAgent);
+  const push = useToasts((s) => s.push);
 
   if (!agent) {
     return <Overview />;
   }
 
+  const isRunning = agent.openPositions > 0;
   const riskColor =
     agent.riskLevel === "low"
       ? "text-success"
@@ -47,7 +49,7 @@ export function AgentDetail() {
           <Metric label="PnL" value={agent.pnlUsdt.toFixed(2)} tone={agent.pnlUsdt >= 0 ? "success" : "danger"} suffix={`(${pct(agent.pnlPct)})`} />
           <Metric label="Открыто позиций" value={String(agent.openPositions)} />
           <Metric label="Подписчиков" value={num(agent.followers)} />
-          <Metric label="Статус" value={agent.openPositions > 0 ? "Торгует" : "Ждёт"} tone={agent.openPositions > 0 ? "success" : undefined} />
+          <Metric label="Статус" value={isRunning ? "Торгует" : "Ждёт"} tone={isRunning ? "success" : undefined} />
         </Card.Content>
       </Card>
 
@@ -91,11 +93,31 @@ export function AgentDetail() {
       </Card>
 
       <div className="grid grid-cols-2 gap-2">
-        <Button variant="primary" size="sm">
+        <Button
+          variant="primary"
+          size="sm"
+          onPress={() =>
+            push({
+              title: `${agent.name} запущен`,
+              description: `Стратегия активна, риск-лимит 2% от баланса`,
+              tone: "success",
+            })
+          }
+        >
           <Icon icon="gravity-ui:play" className="mr-1" />
           Запустить
         </Button>
-        <Button variant="danger-soft" size="sm">
+        <Button
+          variant="danger-soft"
+          size="sm"
+          onPress={() =>
+            push({
+              title: `${agent.name} на паузе`,
+              description: "Новые позиции открываться не будут",
+              tone: "info",
+            })
+          }
+        >
           <Icon icon="gravity-ui:pause" className="mr-1" />
           Пауза
         </Button>
@@ -105,11 +127,11 @@ export function AgentDetail() {
 }
 
 function Overview() {
-  // Aggregate stats when no agent is picked
   const totalBalance = AGENTS.reduce((s, a) => s + a.balanceUsdt, 0);
   const totalPnl = AGENTS.reduce((s, a) => s + a.pnlUsdt, 0);
   const profitable = AGENTS.filter((a) => a.pnlUsdt >= 0).length;
   const loss = AGENTS.length - profitable;
+  const push = useToasts((s) => s.push);
 
   return (
     <div className="flex h-full flex-col gap-2">
@@ -154,7 +176,13 @@ function Overview() {
           <p className="text-xs text-muted">
             Создай прибыльного агента и получай 30% от комиссий подписчиков.
           </p>
-          <Button variant="primary" size="sm" className="mt-2" fullWidth>
+          <Button
+            variant="primary"
+            size="sm"
+            className="mt-2"
+            fullWidth
+            onPress={() => push({title: "Заявка на ревью", description: "Форма «Стать автором» в разработке", tone: "info"})}
+          >
             Стать автором
           </Button>
         </Card.Content>
@@ -182,7 +210,3 @@ function Param({label, value}: {label: string; value: string}) {
     </div>
   );
 }
-
-// Add an alias to keep the metric component used in nested places consistent
-function pnlOf(_a: unknown) {return _a}
-void pnlOf;

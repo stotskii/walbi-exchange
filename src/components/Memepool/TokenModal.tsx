@@ -11,9 +11,8 @@ import {
 
 import type {MemecoinToken} from "../../lib/mock/types";
 import {priceFmt, usdCompact, pct} from "../../lib/format";
-
-// Token detail = TradingView-like modal (audit insight #15). Chart inside
-// modal preserves listing-page context for fast browsing.
+import {useBalances} from "../../store/balances";
+import {useToasts} from "../../store/toast";
 
 export function TokenModal({
   token,
@@ -26,6 +25,40 @@ export function TokenModal({
   const chartRef = useRef<IChartApi | null>(null);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("0");
+  const [pending, setPending] = useState(false);
+
+  const balances = useBalances((s) => s.accounts);
+  const add = useBalances((s) => s.add);
+  const push = useToasts((s) => s.push);
+
+  const memepoolBalance = balances.memepool;
+  const num = parseFloat(amount) || 0;
+  const tokensReceived = num > 0 ? num / token.priceUsd : 0;
+  const valid = num >= 1 && (side === "buy" ? num <= memepoolBalance : true);
+
+  function submit() {
+    if (!valid) return;
+    setPending(true);
+    window.setTimeout(() => {
+      if (side === "buy") {
+        add("memepool", -num);
+        push({
+          tone: "success",
+          title: `Куплено ${token.symbol}`,
+          description: `${tokensReceived.toFixed(4)} ${token.symbol} за ${num.toFixed(2)} USDT`,
+        });
+      } else {
+        add("memepool", num);
+        push({
+          tone: "success",
+          title: `Продано ${token.symbol}`,
+          description: `+${num.toFixed(2)} USDT на Мемепул-счёт`,
+        });
+      }
+      setPending(false);
+      onClose();
+    }, 600);
+  }
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -135,7 +168,10 @@ export function TokenModal({
           </div>
 
           <label className="block">
-            <div className="mb-1 text-xs text-muted">Сумма</div>
+            <div className="mb-1 flex items-center justify-between text-xs text-muted">
+              <span>Сумма (USDT)</span>
+              <span>Мемепул-баланс: {memepoolBalance.toFixed(2)}</span>
+            </div>
             <div className="flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2">
               <input
                 value={amount}
@@ -147,11 +183,17 @@ export function TokenModal({
             </div>
           </label>
 
+          {num > 0 ? (
+            <div className="rounded-xl border border-border bg-surface p-2 text-center text-xs text-muted">
+              ≈ <span className="text-foreground">{tokensReceived.toFixed(4)} {token.symbol}</span>
+            </div>
+          ) : null}
+
           <div className="grid grid-cols-4 gap-1.5">
             {[25, 50, 75, 100].map((p) => (
               <button
                 key={p}
-                onClick={() => setAmount(String(p * 5))}
+                onClick={() => setAmount(((memepoolBalance * p) / 100).toFixed(2))}
                 className="rounded-lg bg-surface-secondary px-2 py-1 text-[11px] text-muted transition-colors hover:text-foreground"
               >
                 {p}%
@@ -159,8 +201,20 @@ export function TokenModal({
             ))}
           </div>
 
-          <Button variant="primary" fullWidth>
-            {side === "buy" ? "Купить" : "Продать"} {token.symbol}
+          {side === "buy" && memepoolBalance < 1 ? (
+            <p className="rounded-lg border border-warning/30 bg-warning/5 px-2 py-1.5 text-[11px] text-warning">
+              На Мемепул-счёте 0 USDT. Сначала переведи средства в Кошельке → Перевод.
+            </p>
+          ) : null}
+
+          <Button
+            variant="primary"
+            fullWidth
+            isDisabled={!valid || pending}
+            isPending={pending}
+            onPress={submit}
+          >
+            {pending ? "Обработка…" : `${side === "buy" ? "Купить" : "Продать"} ${token.symbol}`}
           </Button>
         </div>
       </div>

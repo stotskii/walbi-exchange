@@ -4,10 +4,12 @@ import {motion, useMotionValue, useTransform, type PanInfo} from "framer-motion"
 import {Button, Card} from "@heroui/react";
 import {Icon} from "@iconify/react";
 
-import {mockSignals} from "../lib/mock/data";
-import type {SignalCard} from "../lib/mock/types";
+import {mockSignals, PAIRS} from "../lib/mock/data";
+import type {SignalCard, Position} from "../lib/mock/types";
 import {AgentAvatar} from "../components/AIHub/AgentAvatar";
-import {relativeTime, pct} from "../lib/format";
+import {relativeTime} from "../lib/format";
+import {usePositions} from "../store/positions";
+import {useToasts} from "../store/toast";
 
 export const Route = createFileRoute("/signals")({
   component: SignalsPage,
@@ -28,9 +30,47 @@ function SignalsPage() {
   const [onboardStep, setOnboardStep] = useState(0);
   const [tab, setTab] = useState<"feed" | "positions">("feed");
 
+  const addPosition = usePositions((s) => s.add);
+  const push = useToasts((s) => s.push);
+
   function dismissOnboarding() {
     window.localStorage.setItem("walbi:signals-onboarded", "1");
     setShowOnboarding(false);
+  }
+
+  function handleAction(s: SignalCard, dir: "long" | "short" | "skip") {
+    if (dir === "skip") {
+      setIndex((i) => i + 1);
+      return;
+    }
+
+    const pairSymbol = s.pair.toUpperCase().endsWith("USD") ? s.pair.toUpperCase() : `${s.pair.toUpperCase()}USD`;
+    const pairData = PAIRS.find((p) => p.symbol === pairSymbol);
+    const entry = pairData?.price ?? s.amountUsdt / s.leverage;
+    const liq =
+      dir === "long"
+        ? +(entry * (1 - 1 / s.leverage)).toFixed(entry < 1 ? 6 : 2)
+        : +(entry * (1 + 1 / s.leverage)).toFixed(entry < 1 ? 6 : 2);
+
+    const pos: Position = {
+      id: `p-${Date.now()}`,
+      pair: pairSymbol,
+      side: dir,
+      size: s.amountUsdt,
+      entryPrice: entry,
+      markPrice: entry,
+      leverage: s.leverage,
+      pnl: 0,
+      pnlPct: 0,
+      liquidationPrice: liq,
+    };
+    addPosition(pos);
+    push({
+      tone: "success",
+      title: `${dir === "long" ? "Лонг" : "Шорт"} ${pairSymbol} открыт`,
+      description: `По сигналу ${s.agentName} · ${s.amountUsdt} USDT · ×${s.leverage}`,
+    });
+    setIndex((i) => i + 1);
   }
 
   if (showOnboarding) {
@@ -105,12 +145,7 @@ function SignalsPage() {
               key={s.id}
               signal={s}
               offsetIdx={all.slice(index, index + 3).length - 1 - idx}
-              onSwipe={(dir) => {
-                if (dir === "long" || dir === "short") {
-                  console.log("trade", s, dir);
-                }
-                setIndex((i) => i + 1);
-              }}
+              onSwipe={(dir) => handleAction(s, dir)}
             />
           ))}
           {index >= all.length ? (
@@ -131,7 +166,7 @@ function SignalsPage() {
       ) : (
         <Card className="rounded-2xl">
           <Card.Content className="p-8 text-center text-sm text-muted">
-            Открытых позиций по сигналам нет
+            Открытых позиций по сигналам нет. Открой через свайп.
           </Card.Content>
         </Card>
       )}
@@ -255,7 +290,3 @@ function Stat({label, value, tone}: {label: string; value: string; tone?: "succe
     </div>
   );
 }
-
-// signal.side is the suggested action; the user can swipe either direction
-// regardless. Keeping this comment as a developer breadcrumb.
-void pct;
