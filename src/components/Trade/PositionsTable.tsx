@@ -3,6 +3,8 @@ import {Button} from "@heroui/react";
 import {usePositions} from "../../store/positions";
 import {useToasts} from "../../store/toast";
 import {priceFmt, usd, pct} from "../../lib/format";
+import {closeDeal} from "../../lib/api/ws";
+import {useLivePositions} from "../../hooks/useLivePositions";
 
 const TABS = [
   {id: "positions", label: "Позиции"},
@@ -11,6 +13,8 @@ const TABS = [
 ] as const;
 
 export function PositionsTable() {
+  useLivePositions(); // wire fx:deals:* pushes → usePositions store
+
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("positions");
   const positions = usePositions((s) => s.positions);
   const closePosition = usePositions((s) => s.close);
@@ -90,7 +94,22 @@ export function PositionsTable() {
                       <Button
                         size="sm"
                         variant="danger-soft"
-                        onPress={() => {
+                        onPress={async () => {
+                          // If this is a walbi-side deal (id starts with "walbi-"),
+                          // close via WS. Otherwise just nuke from local store.
+                          if (p.id.startsWith("walbi-")) {
+                            const dealId = Number(p.id.slice("walbi-".length));
+                            try {
+                              await closeDeal(dealId);
+                            } catch (err) {
+                              pushToast({
+                                title: `Не удалось закрыть ${p.pair}`,
+                                description: String((err as Error)?.message ?? err),
+                                tone: "danger",
+                              });
+                              return;
+                            }
+                          }
                           closePosition(p.id);
                           pushToast({
                             title: `Позиция ${p.pair} закрыта`,

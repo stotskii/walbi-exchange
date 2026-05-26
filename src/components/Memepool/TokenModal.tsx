@@ -13,12 +13,16 @@ import type {MemecoinToken} from "../../lib/mock/types";
 import {priceFmt, usdCompact, pct} from "../../lib/format";
 import {useBalances} from "../../store/balances";
 import {useToasts} from "../../store/toast";
+import {api} from "../../lib/api/rest";
 
 export function TokenModal({
   token,
+  address,
   onClose,
 }: {
   token: MemecoinToken;
+  /** WALBI on-chain token address (Solana for now) */
+  address?: string;
   onClose: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -28,36 +32,50 @@ export function TokenModal({
   const [pending, setPending] = useState(false);
 
   const balances = useBalances((s) => s.accounts);
-  const add = useBalances((s) => s.add);
   const push = useToasts((s) => s.push);
 
-  const memepoolBalance = balances.memepool;
+  const memepoolBalance = balances.memepool ?? 0;
+  const memepoolAccountId = useBalances.getState().byGroup.memepool?.account_id;
   const num = parseFloat(amount) || 0;
   const tokensReceived = num > 0 ? num / token.priceUsd : 0;
   const valid = num >= 1 && (side === "buy" ? num <= memepoolBalance : true);
 
-  function submit() {
-    if (!valid) return;
+  async function submit() {
+    if (!valid || !address) {
+      if (!address) push({tone: "danger", title: "Нет адреса токена"});
+      return;
+    }
+    if (!memepoolAccountId) {
+      push({tone: "danger", title: "Не найден Мемепул-счёт", description: "Открой Кошелёк сначала"});
+      return;
+    }
     setPending(true);
-    window.setTimeout(() => {
+    try {
       if (side === "buy") {
-        add("memepool", -num);
+        await api.memepool.buy(address, num.toString(), memepoolAccountId);
         push({
           tone: "success",
           title: `Куплено ${token.symbol}`,
           description: `${tokensReceived.toFixed(4)} ${token.symbol} за ${num.toFixed(2)} USDT`,
         });
       } else {
-        add("memepool", num);
+        await api.memepool.sell(address, num.toString(), memepoolAccountId);
         push({
           tone: "success",
           title: `Продано ${token.symbol}`,
-          description: `+${num.toFixed(2)} USDT на Мемепул-счёт`,
+          description: `${num.toFixed(2)} USDT на Мемепул-счёт`,
         });
       }
-      setPending(false);
       onClose();
-    }, 600);
+    } catch (err) {
+      push({
+        tone: "danger",
+        title: `${side === "buy" ? "Покупка" : "Продажа"} не удалась`,
+        description: String((err as Error)?.message ?? err),
+      });
+    } finally {
+      setPending(false);
+    }
   }
 
   useEffect(() => {
@@ -76,12 +94,17 @@ export function TokenModal({
       lineWidth: 2,
     });
 
+    // Walbi doesn't expose memecoin chart history yet — use a smooth synthetic
+    // curve seeded by the current price + 24h change as a visual placeholder.
     const now = Math.floor(Date.now() / 1000);
-    let price = token.priceUsd;
+    const endPrice = token.priceUsd;
+    const startPrice = endPrice / (1 + token.changePct);
     const data: AreaData[] = [];
     for (let i = 100; i >= 0; i--) {
-      price = Math.max(0, price + (Math.random() - 0.5) * token.priceUsd * 0.02);
-      data.push({time: (now - i * 900) as Time, value: price});
+      const t = (100 - i) / 100;
+      const trend = startPrice + (endPrice - startPrice) * t;
+      const jitter = trend * 0.005 * (Math.random() - 0.5);
+      data.push({time: (now - i * 900) as Time, value: Math.max(0, trend + jitter)});
     }
     series.setData(data);
     chart.timeScale().fitContent();
@@ -142,7 +165,7 @@ export function TokenModal({
         <div className="grid grid-cols-3 gap-3 border-y border-border p-4 text-xs">
           <Stat label="Mkt Cap" value={usdCompact(token.marketCapUsd)} />
           <Stat label="Объём 24ч" value={usdCompact(token.volume24hUsd)} />
-          <Stat label="Источник" value="GMGN.AI" />
+          <Stat label="Сеть" value="Solana" />
         </div>
 
         <div className="space-y-3 p-4">

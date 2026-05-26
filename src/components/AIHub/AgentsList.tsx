@@ -1,18 +1,50 @@
+import {useMemo} from "react";
 import {Button, Card} from "@heroui/react";
 import {Icon} from "@iconify/react";
+import {useQuery} from "@tanstack/react-query";
 
-import {AGENTS} from "../../lib/mock/data";
+import {api} from "../../lib/api/rest";
 import {useUI} from "../../store/ui";
 import {useToasts} from "../../store/toast";
 import {AgentAvatar} from "./AgentAvatar";
 import {usd, pct} from "../../lib/format";
+import type {Agent as WalbiAgent} from "../../lib/api/walbi-types";
+import type {Agent as MockAgent} from "../../lib/mock/types";
+
+// Map the live walbi Agent → the shape our UI components expect.
+function toUiAgent(a: WalbiAgent): MockAgent {
+  return {
+    id: a.slug,
+    name: a.name,
+    description: a.summary,
+    riskLevel: a.risk_level === "moderate" ? "medium" : a.risk_level,
+    apr30d: (a.statistics.roi_30d ?? a.statistics.apr ?? 0) / 100,
+    followers: a.statistics.users,
+    balanceUsdt: 0, // не приходит в agent/list — заполнится из agent/session/list позже
+    pnlUsdt: 0,
+    pnlPct: 0,
+    openPositions: 0,
+    avatarUrl: a.image,
+    badge: undefined,
+    pinned: false,
+  };
+}
 
 export function AgentsList() {
   const setSelectedAgent = useUI((s) => s.setSelectedAgent);
   const selected = useUI((s) => s.selectedAgent);
   const push = useToasts((s) => s.push);
-  const pinned = AGENTS.filter((a) => a.pinned);
-  const others = AGENTS.filter((a) => !a.pinned);
+
+  const q = useQuery({
+    queryKey: ["agent", "list"],
+    queryFn: () => api.agent.list(0, 50),
+    staleTime: 60_000,
+  });
+
+  const agents = useMemo<MockAgent[]>(
+    () => (q.data?.list ?? []).map(toUiAgent),
+    [q.data],
+  );
 
   return (
     <div className="flex h-full flex-col gap-2">
@@ -21,7 +53,9 @@ export function AgentsList() {
           Мои агенты
         </h2>
         <button
-          onClick={() => push({title: "Маркетплейс агентов", description: "Раздел в разработке", tone: "info"})}
+          onClick={() =>
+            push({title: "Маркетплейс агентов", description: "Раздел в разработке", tone: "info"})
+          }
           className="rounded p-1 text-muted hover:bg-surface-secondary"
           aria-label="Маркетплейс"
           title="Маркетплейс"
@@ -36,7 +70,9 @@ export function AgentsList() {
             variant="primary"
             fullWidth
             size="sm"
-            onPress={() => push({title: "Создать нового агента", description: "3-шаговый мастер в разработке", tone: "info"})}
+            onPress={() =>
+              push({title: "Создать нового агента", description: "3-шаговый мастер в разработке", tone: "info"})
+            }
           >
             <Icon icon="gravity-ui:plus" className="mr-1.5" />
             Создать нового агента
@@ -45,67 +81,48 @@ export function AgentsList() {
       </Card>
 
       <div className="-mr-1 overflow-y-auto pr-1">
-        {pinned.length > 0 ? (
-          <div className="mb-1">
+        {q.isLoading ? (
+          <div className="space-y-1 px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted">
+            Загрузка…
+          </div>
+        ) : q.isError ? (
+          <div className="space-y-1 px-2 py-3 text-xs text-danger">
+            Не удалось загрузить агентов
+          </div>
+        ) : null}
+
+        {agents.length > 0 ? (
+          <>
             <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted">
-              Закреплено
+              {agents.length} агентов
             </div>
             <div className="space-y-1">
-              {pinned.map((a) => (
+              {agents.map((a) => (
                 <Row
                   key={a.id}
-                  name={a.name}
-                  balance={a.balanceUsdt}
-                  pnl={a.pnlUsdt}
-                  pnlPct={a.pnlPct}
-                  badge={a.badge}
+                  agent={a}
                   active={selected?.id === a.id}
                   onClick={() => setSelectedAgent(a)}
                 />
               ))}
             </div>
-          </div>
+          </>
         ) : null}
-
-        <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-muted">
-          Активные
-        </div>
-        <div className="space-y-1">
-          {others.map((a) => (
-            <Row
-              key={a.id}
-              name={a.name}
-              balance={a.balanceUsdt}
-              pnl={a.pnlUsdt}
-              pnlPct={a.pnlPct}
-              badge={a.badge}
-              active={selected?.id === a.id}
-              onClick={() => setSelectedAgent(a)}
-            />
-          ))}
-        </div>
       </div>
     </div>
   );
 }
 
 function Row({
-  name,
-  balance,
-  pnl,
-  pnlPct,
-  badge,
+  agent,
   active,
   onClick,
 }: {
-  name: string;
-  balance: number;
-  pnl: number;
-  pnlPct: number;
-  badge?: "trending" | "verified" | "hiring";
+  agent: MockAgent;
   active?: boolean;
   onClick?: () => void;
 }) {
+  const apr = agent.apr30d;
   return (
     <button
       onClick={onClick}
@@ -114,14 +131,24 @@ function Row({
         active ? "bg-surface-secondary" : "hover:bg-surface",
       ].join(" ")}
     >
-      <AgentAvatar name={name} size={32} badge={badge} />
+      {agent.avatarUrl ? (
+        <img
+          src={agent.avatarUrl}
+          alt={agent.name}
+          className="size-8 shrink-0 rounded-full object-cover"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <AgentAvatar name={agent.name} size={32} badge={agent.badge} />
+      )}
       <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium">{name}</div>
+        <div className="truncate text-xs font-medium">{agent.name}</div>
         <div className="flex items-center gap-1.5 text-[10px] text-muted">
-          <span>{usd(balance)} USDT</span>
-          {pnl !== 0 ? (
-            <span className={pnl > 0 ? "text-success" : "text-danger"}>
-              {pct(pnlPct)}
+          <span>{usd(agent.balanceUsdt)} USDT</span>
+          {apr !== 0 ? (
+            <span className={apr > 0 ? "text-success" : "text-danger"}>
+              APR {pct(apr)}
             </span>
           ) : null}
         </div>

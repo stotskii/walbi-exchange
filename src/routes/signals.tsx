@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {createFileRoute} from "@tanstack/react-router";
 import {motion, useMotionValue, useTransform, type PanInfo} from "framer-motion";
 import {Button, Card} from "@heroui/react";
@@ -10,6 +10,47 @@ import {AgentAvatar} from "../components/AIHub/AgentAvatar";
 import {relativeTime, priceFmt, pct} from "../lib/format";
 import {usePositions} from "../store/positions";
 import {useToasts} from "../store/toast";
+import {subscribeSignals} from "../lib/api/ws";
+
+// WALBI Lighthouse signal shape (event 704, highlight:available:v3).
+// Hand-typed conservatively — the swagger model is rich; we only pluck
+// fields the UI actually uses, and let the rest pass through.
+interface WalbiHighlight {
+  id?: number;
+  pair?: string;
+  dir?: "long" | "short" | "up" | "down";
+  amount?: string;
+  amount_usd?: string;
+  multiplicator?: number;
+  text?: string;
+  description?: string;
+  reasoning?: string;
+  agent_name?: string;
+  agent_slug?: string;
+  agent_image?: string;
+  created_at?: number;
+  take_profit?: {value?: string};
+  stop_loss?: {value?: string};
+  auto_trade?: boolean;
+}
+
+function highlightToCard(h: WalbiHighlight, idx: number): SignalCard {
+  const dir = h.dir === "short" || h.dir === "down" ? "short" : "long";
+  return {
+    id: String(h.id ?? `live-${idx}-${h.created_at ?? Date.now()}`),
+    agentName: h.agent_name ?? "Lighthouse",
+    agentAvatar: (h.agent_name ?? "L").slice(0, 1),
+    pair: h.pair ?? "BTC",
+    side: dir,
+    text: h.text ?? h.description ?? h.reasoning ?? "Сигнал от Lighthouse",
+    postedAt: (h.created_at ?? Date.now() / 1000) * 1000,
+    amountUsdt: parseFloat(h.amount_usd ?? h.amount ?? "100") || 100,
+    leverage: h.multiplicator ?? 5,
+    takeProfitPct: parseFloat(h.take_profit?.value ?? "0.1") || 0.1,
+    stopLossPct: parseFloat(h.stop_loss?.value ?? "0.05") || 0.05,
+    autoTrade: !!h.auto_trade,
+  };
+}
 
 export const Route = createFileRoute("/signals")({
   component: SignalsPage,
@@ -24,7 +65,27 @@ const ONBOARDING_STEPS = [
 const SIGNAL_PREFIX = "p-sig-";
 
 function SignalsPage() {
-  const all = useMemo(() => mockSignals(), []);
+  // Live signals from WALBI Lighthouse via WS push (highlight:available:v3,
+  // poll-windowed through the BFF — so latency ~5s but real). Fall back to
+  // the mock deck if no signals arrived yet (typical for quiet hours).
+  const [liveSignals, setLiveSignals] = useState<SignalCard[]>([]);
+  useEffect(() => {
+    const off = subscribeSignals((raw) => {
+      const list = Array.isArray(raw) ? (raw as WalbiHighlight[]) : [raw as WalbiHighlight];
+      setLiveSignals((prev) => {
+        const next = [...prev];
+        for (let i = 0; i < list.length; i++) {
+          const card = highlightToCard(list[i], next.length + i);
+          if (!next.find((s) => s.id === card.id)) next.unshift(card);
+        }
+        return next.slice(0, 30); // cap
+      });
+    });
+    return off;
+  }, []);
+
+  const mock = useMemo(() => mockSignals(), []);
+  const all = liveSignals.length > 0 ? liveSignals : mock;
   const [index, setIndex] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(
     () => typeof window !== "undefined" && !window.localStorage.getItem("walbi:signals-onboarded"),

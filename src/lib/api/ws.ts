@@ -1,55 +1,74 @@
 /**
- * Cerberus WebSocket client for wss://ws.walbi.com/otp.
+ * WebSocket client for our BFF at wss://exchange.walbi.cfd/ws.
  *
- * Wire format (single multiplexed connection):
- *   Outgoing:  [{ e: <event_id>, t: 2, uuid: <correlation>, d: <payload> }]
- *   Response:  [{ e: <same_id>, t: 1, uuid: <same_uuid>, d: <response> }]
- *   Push:      [{ e: <event_id>, t: 3, d: <payload> }]
+ * BFF envelope (matches walbi-exchange-proxy/src/ws-proxy.ts):
+ *   client → server:
+ *     {type:"request", uuid, event_name, data}
+ *     {type:"subscribe", event_names: string[]}
+ *     {type:"unsubscribe", event_names: string[]}
+ *     {type:"ping"}
  *
- * Flow:
- *   1. connect → wait for OPEN
- *   2. send auth:login:request with current access_token (event 1)
- *   3. wait for response — only then can other events fire
- *   4. components call subscribePush(eventId, cb) which internally bundles
- *      requested ids into one changes:subscribe (98) request
- *   5. components call request(eventId, payload) for one-shot REQ/RES
- *   6. on connection:closing (220) or socket close → reconnect with backoff
- *      and re-establish subscriptions
+ *   server → client:
+ *     {type:"response", uuid, event_name, data, error?}
+ *     {type:"push", event_id, event_name, ts?, data}
+ *     {type:"ack", action, count}
+ *     {type:"error", message, uuid?}
+ *     {type:"pong"}
+ *
+ * Push events arrive ~5s polled (BFF uses walbi-mcp ws_subscribe windows).
+ * Auto-reconnect with exponential backoff; subscriptions are re-established.
  */
 
 import {WS_EVENT} from "./walbi-types";
-import {getAccessToken} from "./rest";
 
-interface WireFrame<T = unknown> {
-  e: number;
-  t: 1 | 2 | 3;
+interface OutFrame {
+  type: "request" | "subscribe" | "unsubscribe" | "ping";
   uuid?: string;
-  d?: T;
+  event_name?: string;
+  event_names?: string[];
+  data?: unknown;
 }
 
-type PushListener<T = unknown> = (data: T) => void;
+interface InFrame {
+  type: "response" | "push" | "ack" | "error" | "pong";
+  uuid?: string;
+  event_name?: string;
+  event_id?: number;
+  ts?: number;
+  data?: unknown;
+  error?: unknown;
+  message?: string;
+  action?: string;
+  count?: number;
+}
 
-const ENDPOINT = import.meta.env.VITE_WALBI_WS ?? "wss://ws.walbi.com/otp";
+type PushListener = (data: unknown, ts?: number) => void;
 
-class WalbiSocket {
+const ENDPOINT = (() => {
+  if (typeof window === "undefined") return "wss://exchange.walbi.cfd/ws";
+  const env = import.meta.env.VITE_WALBI_BFF_WS;
+  if (env) return env;
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/ws`;
+})();
+
+class BFFSocket {
   private ws: WebSocket | null = null;
   private connectPromise: Promise<void> | null = null;
-  private authPromise: Promise<void> | null = null;
   private backoffMs = 500;
   private intentional = false;
 
-  /** Pending REQ/RES correlation by uuid */
-  private pending = new Map<string, {resolve: (v: unknown) => void; reject: (e: Error) => void; timer: number}>();
+  private pending = new Map<
+    string,
+    {resolve: (v: unknown) => void; reject: (e: Error) => void; timer: number}
+  >();
 
-  /** Push event listeners — many per event_id */
-  private listeners = new Map<number, Set<PushListener>>();
-
-  /** Server push subscriptions we should re-establish on reconnect */
-  private activeSubs = new Set<number>();
-
+  /** event_name → set of listeners */
+  private listeners = new Map<string, Set<PushListener>>();
+  /** event_names actively subscribed on the server */
+  private activeSubs = new Set<string>();
+  /** outbox while socket is opening */
   private outbox: string[] = [];
-
-  // --- Connection lifecycle ---------------------------------------------
 
   private async connect(): Promise<void> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
@@ -59,186 +78,184 @@ class WalbiSocket {
       this.intentional = false;
       const ws = new WebSocket(ENDPOINT);
 
+      const safetyTimer = window.setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          try {
+            ws.close();
+          } catch {
+            // ignore
+          }
+          reject(new Error("WS open timeout"));
+        }
+      }, 10_000);
+
       ws.addEventListener("open", () => {
+        window.clearTimeout(safetyTimer);
         this.backoffMs = 500;
         this.connectPromise = null;
-        // flush queued sends only AFTER auth completes
+        // flush outbox
+        for (const payload of this.outbox) ws.send(payload);
+        this.outbox = [];
+        // re-establish subscriptions
+        if (this.activeSubs.size > 0) {
+          ws.send(
+            JSON.stringify({
+              type: "subscribe",
+              event_names: [...this.activeSubs],
+            } satisfies OutFrame),
+          );
+        }
         resolve();
       });
 
-      ws.addEventListener("message", (ev) => this.onMessage(ev.data));
+      ws.addEventListener("message", (ev) => this.onMessage(ev.data as string));
 
       ws.addEventListener("close", () => {
+        window.clearTimeout(safetyTimer);
         this.ws = null;
         this.connectPromise = null;
-        this.authPromise = null;
-        // fail all pending requests
         for (const p of this.pending.values()) {
           window.clearTimeout(p.timer);
           p.reject(new Error("WS closed"));
         }
         this.pending.clear();
         if (this.intentional) return;
-        window.setTimeout(() => this.reconnect(), this.backoffMs);
+        window.setTimeout(() => void this.connect(), this.backoffMs);
         this.backoffMs = Math.min(this.backoffMs * 2, 30_000);
       });
 
       ws.addEventListener("error", () => {
-        // close handler will retry
-        try { ws.close(); } catch {}
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
       });
 
       this.ws = ws;
-      // safety timeout for the open event
-      window.setTimeout(() => {
-        if (ws.readyState !== WebSocket.OPEN) {
-          ws.close();
-          reject(new Error("WS open timeout"));
-        }
-      }, 10_000);
     });
 
     return this.connectPromise;
   }
 
-  private async reconnect(): Promise<void> {
-    try {
-      await this.connect();
-      await this.authenticate();
-      // re-subscribe everything we had
-      if (this.activeSubs.size > 0) {
-        await this.sendRaw({e: WS_EVENT.CHANGES_SUBSCRIBE.id, t: 2, uuid: rid(), d: [...this.activeSubs]});
-      }
-    } catch (err) {
-      console.warn("WS reconnect failed", err);
-    }
-  }
-
-  /** Send auth:login:request with the current access_token */
-  private async authenticate(): Promise<void> {
-    if (this.authPromise) return this.authPromise;
-    const token = getAccessToken();
-    if (!token) throw new Error("No access token — call setAccessToken() first");
-
-    this.authPromise = this.request(WS_EVENT.AUTH_LOGIN.id, {access_token: token}, {skipAuth: true})
-      .then(() => undefined);
-    return this.authPromise;
-  }
-
-  // --- Frame I/O ---------------------------------------------------------
-
-  private async sendRaw(frame: WireFrame): Promise<void> {
-    const payload = JSON.stringify([frame]);
-    await this.connect();
+  private async sendRaw(frame: OutFrame): Promise<void> {
+    const payload = JSON.stringify(frame);
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(payload);
     } else {
       this.outbox.push(payload);
+      await this.connect();
     }
   }
 
   private onMessage(raw: string): void {
-    let frames: WireFrame[];
+    let frame: InFrame;
     try {
-      frames = JSON.parse(raw);
+      frame = JSON.parse(raw) as InFrame;
     } catch {
-      return; // tolerate non-JSON
+      return;
     }
 
-    for (const f of frames) {
-      // response to a REQ
-      if (f.t === 1 && f.uuid && this.pending.has(f.uuid)) {
-        const p = this.pending.get(f.uuid)!;
-        window.clearTimeout(p.timer);
-        this.pending.delete(f.uuid);
-        p.resolve(f.d);
-        continue;
+    if (frame.type === "response" && frame.uuid && this.pending.has(frame.uuid)) {
+      const p = this.pending.get(frame.uuid)!;
+      window.clearTimeout(p.timer);
+      this.pending.delete(frame.uuid);
+      if (frame.error) {
+        p.reject(new Error(typeof frame.error === "string" ? frame.error : JSON.stringify(frame.error)));
+      } else {
+        p.resolve(frame.data);
       }
+      return;
+    }
 
-      // push to listeners
-      const subs = this.listeners.get(f.e);
+    if (frame.type === "push" && frame.event_name) {
+      const subs = this.listeners.get(frame.event_name);
       if (subs) {
         for (const cb of subs) {
           try {
-            cb(f.d);
+            cb(frame.data, frame.ts);
           } catch (err) {
             console.error("WS listener threw", err);
           }
         }
       }
+      return;
+    }
 
-      // server told us to reconnect
-      if (f.e === WS_EVENT.CONNECTION_CLOSING.id) {
-        try { this.ws?.close(); } catch {}
+    if (frame.type === "error") {
+      console.warn("BFF WS error:", frame.message);
+      if (frame.uuid && this.pending.has(frame.uuid)) {
+        const p = this.pending.get(frame.uuid)!;
+        window.clearTimeout(p.timer);
+        this.pending.delete(frame.uuid);
+        p.reject(new Error(frame.message ?? "WS error"));
       }
     }
   }
 
-  // --- Public API --------------------------------------------------------
-
-  /** One-shot REQ/RES. Auto-authenticates first unless skipAuth=true. */
+  /** REQ/RES — single round-trip. */
   async request<TReq = unknown, TRes = unknown>(
-    eventId: number,
-    payload?: TReq,
-    opts: {timeoutMs?: number; skipAuth?: boolean} = {},
+    event_name: string,
+    data?: TReq,
+    opts: {timeoutMs?: number} = {},
   ): Promise<TRes> {
-    if (!opts.skipAuth) await this.authenticate();
-
     const uuid = rid();
-    const frame: WireFrame<TReq> = {e: eventId, t: 2, uuid, d: payload};
-
     return new Promise<TRes>((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.pending.delete(uuid);
-        reject(new Error(`WS request ${eventId} timeout`));
-      }, opts.timeoutMs ?? 15_000);
-
-      this.pending.set(uuid, {resolve: resolve as (v: unknown) => void, reject, timer});
-      this.sendRaw(frame as WireFrame).catch((err) => {
+        reject(new Error(`WS request ${event_name} timeout`));
+      }, opts.timeoutMs ?? 20_000);
+      this.pending.set(uuid, {
+        resolve: resolve as (v: unknown) => void,
+        reject,
+        timer,
+      });
+      void this.sendRaw({type: "request", uuid, event_name, data}).catch((err) => {
         window.clearTimeout(timer);
         this.pending.delete(uuid);
-        reject(err);
+        reject(err as Error);
       });
     });
   }
 
-  /**
-   * Subscribe to a push event_id. Returns unsubscribe fn. Multiple listeners
-   * on the same id share one server-side subscription via ref-counting.
-   */
-  subscribePush<T = unknown>(eventId: number, listener: PushListener<T>): () => void {
-    let set = this.listeners.get(eventId);
+  /** Subscribe to one push event_name. Returns unsubscribe fn. Ref-counted. */
+  subscribePush<T = unknown>(event_name: string, listener: PushListener): () => void {
+    let set = this.listeners.get(event_name);
     if (!set) {
       set = new Set();
-      this.listeners.set(eventId, set);
+      this.listeners.set(event_name, set);
     }
     set.add(listener as PushListener);
 
-    // first listener for this id — open server-side sub
-    if (set.size === 1 && !this.activeSubs.has(eventId)) {
-      this.activeSubs.add(eventId);
-      void this.authenticate().then(() =>
-        this.sendRaw({e: WS_EVENT.CHANGES_SUBSCRIBE.id, t: 2, uuid: rid(), d: [eventId]}),
-      );
+    if (set.size === 1 && !this.activeSubs.has(event_name)) {
+      this.activeSubs.add(event_name);
+      void this.sendRaw({type: "subscribe", event_names: [event_name]});
     }
 
+    // ensure socket is up
+    void this.connect();
+
     return () => {
-      const s = this.listeners.get(eventId);
+      const s = this.listeners.get(event_name);
       if (!s) return;
       s.delete(listener as PushListener);
       if (s.size === 0) {
-        this.listeners.delete(eventId);
-        this.activeSubs.delete(eventId);
-        void this.sendRaw({e: WS_EVENT.CHANGES_UNSUBSCRIBE.id, t: 2, uuid: rid(), d: [eventId]});
+        this.listeners.delete(event_name);
+        this.activeSubs.delete(event_name);
+        void this.sendRaw({type: "unsubscribe", event_names: [event_name]});
       }
     };
+    void ({} as T); // type marker
   }
 
   close(): void {
     this.intentional = true;
-    try { this.ws?.close(); } catch {}
+    try {
+      this.ws?.close();
+    } catch {
+      // ignore
+    }
     this.ws = null;
-    this.authPromise = null;
     this.outbox = [];
     this.pending.clear();
     this.listeners.clear();
@@ -250,39 +267,63 @@ function rid(): string {
   return Math.random().toString(36).slice(2, 9);
 }
 
-export const walbiSocket = new WalbiSocket();
+export const walbiSocket = new BFFSocket();
 
-// -- Convenience hooks the components will use ----------------------------
+// -- High-level helpers (named for what they DO, not what event they use) --
 
-export async function subscribeTicker(pair: string, onTick: (tick: import("./walbi-types").SimpleTick) => void) {
-  // Subscribe at the server for this pair specifically, then listen to the
-  // generic fx:tick:change push and filter by pair.
-  await walbiSocket.request(WS_EVENT.FX_TICKS_SUBSCRIBE.id, {pair});
-  const off = walbiSocket.subscribePush<import("./walbi-types").SimpleTick>(
-    WS_EVENT.FX_TICK_CHANGE.id,
-    (t) => { if (t.p === pair) onTick(t); },
-  );
+import type {
+  SimpleTick,
+  OrderBookFrame,
+  CandleHistoryRes,
+  DealOpenReq,
+  APIDeal,
+  PredictionDealOpenReq,
+  PredictionDeal,
+  PredictionBlock,
+  ChatMessageSendReq,
+  ChatMessage,
+  BalanceFrame,
+} from "./walbi-types";
+
+export async function subscribeTicker(
+  pair: string,
+  onTick: (t: SimpleTick) => void,
+): Promise<() => Promise<void>> {
+  await walbiSocket.request(WS_EVENT.FX_TICKS_SUBSCRIBE.name, {pair});
+  const off = walbiSocket.subscribePush<SimpleTick>(WS_EVENT.FX_TICK_CHANGE.name, (data) => {
+    const tick = data as SimpleTick;
+    if (tick?.p === pair) onTick(tick);
+  });
   return async () => {
     off();
-    await walbiSocket.request(WS_EVENT.FX_TICKS_UNSUBSCRIBE.id, {pair});
+    try {
+      await walbiSocket.request(WS_EVENT.FX_TICKS_UNSUBSCRIBE.name, {pair});
+    } catch {
+      // ignore unsub failures
+    }
   };
 }
 
 export async function subscribeOrderBook(
   pair: string,
   scale: 1 | 10 | 100 | 1000,
-  onUpdate: (book: import("./walbi-types").OrderBookFrame) => void,
-) {
-  await walbiSocket.request(WS_EVENT.FX_MARKET_SUBSCRIBE.id, {pair, scale});
-  const off = walbiSocket.subscribePush<import("./walbi-types").OrderBookFrame[]>(
-    WS_EVENT.FX_MARKET_CHANGE.id,
-    (books) => {
-      for (const b of books) if (b.p === pair && b.s === scale) onUpdate(b);
-    },
-  );
+  onUpdate: (book: OrderBookFrame) => void,
+): Promise<() => Promise<void>> {
+  await walbiSocket.request(WS_EVENT.FX_MARKET_SUBSCRIBE.name, {pair, scale});
+  const off = walbiSocket.subscribePush<OrderBookFrame[]>(WS_EVENT.FX_MARKET_CHANGE.name, (data) => {
+    const books = data as OrderBookFrame[];
+    if (!Array.isArray(books)) return;
+    for (const b of books) {
+      if (b?.p === pair && b?.s === scale) onUpdate(b);
+    }
+  });
   return async () => {
     off();
-    await walbiSocket.request(WS_EVENT.FX_MARKET_UNSUBSCRIBE.id, {pair, scale});
+    try {
+      await walbiSocket.request(WS_EVENT.FX_MARKET_UNSUBSCRIBE.name, {pair, scale});
+    } catch {
+      // ignore
+    }
   };
 }
 
@@ -291,31 +332,116 @@ export async function fetchCandleHistory(
   size: number,
   limit = 200,
   to?: number,
-): Promise<import("./walbi-types").CandleHistoryRes> {
-  return walbiSocket.request<unknown, import("./walbi-types").CandleHistoryRes>(
-    WS_EVENT.FX_CANDLES_HISTORY.id,
-    {pair, size, limit, to, solid: false},
-  );
+): Promise<CandleHistoryRes> {
+  return walbiSocket.request<unknown, CandleHistoryRes>(WS_EVENT.FX_CANDLES_HISTORY.name, {
+    pair,
+    size,
+    limit,
+    to,
+    solid: false,
+  });
 }
 
-export async function openDeal(req: import("./walbi-types").DealOpenReq) {
-  return walbiSocket.request<import("./walbi-types").DealOpenReq, import("./walbi-types").APIDeal>(
-    WS_EVENT.FX_DEALS_OPENING.id,
+export async function openDeal(req: DealOpenReq): Promise<APIDeal> {
+  return walbiSocket.request<DealOpenReq, APIDeal>(WS_EVENT.FX_DEALS_OPENING.name, req);
+}
+
+export async function closeDeal(deal_id: number): Promise<unknown> {
+  return walbiSocket.request(WS_EVENT.FX_DEALS_CLOSING.name, {id: deal_id});
+}
+
+export async function openPredictionDeal(req: PredictionDealOpenReq): Promise<PredictionDeal> {
+  return walbiSocket.request<PredictionDealOpenReq, PredictionDeal>(
+    WS_EVENT.PREDICTION_DEAL_OPEN.name,
     req,
   );
 }
 
-export async function closeDeal(deal_id: number) {
-  return walbiSocket.request(WS_EVENT.FX_DEALS_CLOSING.id, {id: deal_id});
+export async function sendChatMessage(req: ChatMessageSendReq): Promise<unknown> {
+  return walbiSocket.request(WS_EVENT.CHAT_MESSAGE_SEND.name, req);
 }
 
-export async function openPredictionDeal(req: import("./walbi-types").PredictionDealOpenReq) {
-  return walbiSocket.request<import("./walbi-types").PredictionDealOpenReq, import("./walbi-types").PredictionDeal>(
-    WS_EVENT.PREDICTION_DEAL_OPEN.id,
-    req,
+export function subscribeBalanceChanges(cb: (b: BalanceFrame) => void): () => void {
+  return walbiSocket.subscribePush<BalanceFrame>(WS_EVENT.BALANCE_CHANGE.name, (data) =>
+    cb(data as BalanceFrame),
   );
 }
 
-export async function sendChatMessage(req: import("./walbi-types").ChatMessageSendReq) {
-  return walbiSocket.request(WS_EVENT.CHAT_MESSAGE_SEND.id, req);
+export function subscribeDealEvents(cb: (deal: APIDeal, eventName: string) => void): () => void {
+  const offs = [
+    walbiSocket.subscribePush<APIDeal>(WS_EVENT.FX_DEALS_OPEN.name, (d) =>
+      cb(d as APIDeal, WS_EVENT.FX_DEALS_OPEN.name),
+    ),
+    walbiSocket.subscribePush<APIDeal>(WS_EVENT.FX_DEALS_CLOSED.name, (d) =>
+      cb(d as APIDeal, WS_EVENT.FX_DEALS_CLOSED.name),
+    ),
+    walbiSocket.subscribePush<APIDeal>(WS_EVENT.FX_DEALS_CHANGE.name, (d) =>
+      cb(d as APIDeal, WS_EVENT.FX_DEALS_CHANGE.name),
+    ),
+    walbiSocket.subscribePush<APIDeal>(WS_EVENT.FX_DEALS_PROCEED_MIN.name, (d) =>
+      cb(d as APIDeal, WS_EVENT.FX_DEALS_PROCEED_MIN.name),
+    ),
+  ];
+  return () => offs.forEach((o) => o());
+}
+
+export function subscribePredictionUpdates(callbacks: {
+  onBlockSnapshot?: (block: PredictionBlock) => void;
+  onBlockUpdate?: (partial: Partial<PredictionBlock> & {uid: string}) => void;
+  onDealUpdate?: (deal: PredictionDeal) => void;
+}): () => void {
+  const offs: Array<() => void> = [];
+  if (callbacks.onBlockSnapshot) {
+    offs.push(
+      walbiSocket.subscribePush<PredictionBlock>(
+        WS_EVENT.PREDICTION_BLOCK_SNAPSHOT.name,
+        (d) => callbacks.onBlockSnapshot!(d as PredictionBlock),
+      ),
+    );
+  }
+  if (callbacks.onBlockUpdate) {
+    offs.push(
+      walbiSocket.subscribePush<Partial<PredictionBlock> & {uid: string}>(
+        WS_EVENT.PREDICTION_BLOCK_UPDATE.name,
+        (d) => callbacks.onBlockUpdate!(d as Partial<PredictionBlock> & {uid: string}),
+      ),
+    );
+  }
+  if (callbacks.onDealUpdate) {
+    offs.push(
+      walbiSocket.subscribePush<PredictionDeal>(
+        WS_EVENT.PREDICTION_DEAL_UPDATE.name,
+        (d) => callbacks.onDealUpdate!(d as PredictionDeal),
+      ),
+    );
+  }
+  return () => offs.forEach((o) => o());
+}
+
+export function subscribeChatMessages(cb: (msg: ChatMessage) => void): () => void {
+  return walbiSocket.subscribePush<ChatMessage>(WS_EVENT.CHAT_MESSAGE_UPDATE.name, (d) =>
+    cb(d as ChatMessage),
+  );
+}
+
+export function subscribeNotifications(
+  cb: (n: unknown, eventName: string) => void,
+): () => void {
+  const offs = [
+    walbiSocket.subscribePush(WS_EVENT.NOTIFICATION_NEW.name, (d) =>
+      cb(d, WS_EVENT.NOTIFICATION_NEW.name),
+    ),
+    walbiSocket.subscribePush(WS_EVENT.NOTIFICATION_DELETE.name, (d) =>
+      cb(d, WS_EVENT.NOTIFICATION_DELETE.name),
+    ),
+  ];
+  return () => offs.forEach((o) => o());
+}
+
+export function subscribeSignals(cb: (sig: unknown) => void): () => void {
+  return walbiSocket.subscribePush(WS_EVENT.HIGHLIGHT_AVAILABLE_V3.name, cb);
+}
+
+export function subscribeInstrumentChanges(cb: (data: unknown) => void): () => void {
+  return walbiSocket.subscribePush(WS_EVENT.FX_INSTRUMENT_CHANGE.name, cb);
 }

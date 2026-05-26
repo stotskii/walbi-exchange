@@ -11,6 +11,7 @@ import {useUI} from "../store/ui";
 import {useBalances} from "../store/balances";
 import {useToasts} from "../store/toast";
 import {usePositions} from "../store/positions";
+import {useLiveBalances} from "../hooks/useLiveBalances";
 import type {SubAccount} from "../lib/mock/types";
 
 export const Route = createFileRoute("/wallet")({
@@ -36,6 +37,8 @@ const SUB_ASSET_FILTER: Record<string, string[] | null> = {
 };
 
 function WalletPage() {
+  useLiveBalances(); // wire balance_account:list snapshot + balance:change:v3 push
+
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("overview");
   const [showSmall, setShowSmall] = useState(false);
   const [search, setSearch] = useState("");

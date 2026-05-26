@@ -5,7 +5,9 @@ import {Icon} from "@iconify/react";
 import {PAIRS} from "../../lib/mock/data";
 import {priceFmt, usd} from "../../lib/format";
 import {usePositions} from "../../store/positions";
+import {useBalances} from "../../store/balances";
 import {useToasts} from "../../store/toast";
+import {openDeal} from "../../lib/api/ws";
 import type {Position} from "../../lib/mock/types";
 
 type OrderType = "market" | "limit";
@@ -33,39 +35,74 @@ export function OrderForm({pair}: {pair: string}) {
   const fee = num * 0.001;
   const valid = num >= 1 && pairData != null;
 
-  function openPosition(side: Side) {
+  async function openPosition(side: Side) {
     if (!valid || !pairData) return;
     setPending(side);
 
     const entry =
       type === "limit" ? parseFloat(limitPrice) || pairData.price : pairData.price;
 
-    // Fake roundtrip — keep UI honest about the loading state.
-    window.setTimeout(() => {
+    // Pick the trading-group account. WALBI requires a trading account_id —
+    // pull from the live balances store.
+    const tradingGroup = useBalances.getState().byGroup.trading
+      ?? useBalances.getState().byGroup.fx
+      ?? useBalances.getState().byGroup.funding;
+    if (!tradingGroup) {
+      pushToast({
+        title: "Нет торгового счёта",
+        description: "Открой Кошелёк → Создать торговый аккаунт",
+        tone: "danger",
+      });
+      setPending(null);
+      return;
+    }
+
+    try {
+      const deal = await openDeal({
+        account_id: tradingGroup.account_id,
+        pair,
+        amount: num.toString(),
+        dir: side,
+        multiplicator: leverage,
+        margin_type: isolated ? "isolated" : "cross",
+        group: tradingGroup.group,
+        ...(tpEnabled
+          ? {take_profit: {type: "percent", value: tpPct}}
+          : {}),
+        ...(slEnabled
+          ? {stop_loss: {type: "percent", value: slPct, trailing: false, trailing_step: 0}}
+          : {}),
+      });
+
+      // Optimistic: add to local store. The WS push will replace it shortly.
       const pos: Position = {
-        id: `p-${Date.now()}`,
+        id: `walbi-${deal.id ?? Date.now()}`,
         pair,
         side,
         size: num,
-        entryPrice: entry,
-        markPrice: pairData.price,
+        entryPrice: deal.price_open ?? entry,
+        markPrice: deal.price_current ?? entry,
         leverage,
-        pnl: 0,
+        pnl: parseFloat(deal.floating_pnl ?? "0") || 0,
         pnlPct: 0,
-        liquidationPrice:
-          side === "long"
-            ? +(entry * (1 - 1 / leverage)).toFixed(pairData.price < 1 ? 6 : 2)
-            : +(entry * (1 + 1 / leverage)).toFixed(pairData.price < 1 ? 6 : 2),
+        liquidationPrice: deal.stop_out_price ?? 0,
       };
       addPosition(pos);
       pushToast({
         title: `${side === "long" ? "Лонг" : "Шорт"} ${pair} открыт`,
-        description: `${usd(num)} ${pairData.quote} · плечо ×${leverage} · вход ${priceFmt(entry)}`,
+        description: `${usd(num)} ${pairData.quote} · плечо ×${leverage} · вход ${priceFmt(deal.price_open ?? entry)}`,
         tone: "success",
       });
-      setPending(null);
       setAmount("0");
-    }, 650);
+    } catch (err) {
+      pushToast({
+        title: `${side === "long" ? "Лонг" : "Шорт"} не открыт`,
+        description: String((err as Error)?.message ?? err),
+        tone: "danger",
+      });
+    } finally {
+      setPending(null);
+    }
   }
 
   return (
@@ -212,7 +249,7 @@ export function OrderForm({pair}: {pair: string}) {
           variant="primary"
           isDisabled={!valid || pending !== null}
           isPending={pending === "long"}
-          onPress={() => openPosition("long")}
+          onPress={() => void openPosition("long")}
         >
           {pending === "long" ? "Открываю…" : "Открыть Лонг"}
         </Button>
@@ -220,7 +257,7 @@ export function OrderForm({pair}: {pair: string}) {
           variant="danger"
           isDisabled={!valid || pending !== null}
           isPending={pending === "short"}
-          onPress={() => openPosition("short")}
+          onPress={() => void openPosition("short")}
         >
           {pending === "short" ? "Открываю…" : "Открыть Шорт"}
         </Button>

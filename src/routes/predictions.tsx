@@ -1,71 +1,126 @@
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {createFileRoute} from "@tanstack/react-router";
 import {Card, Button} from "@heroui/react";
 import {Icon} from "@iconify/react";
 
 import {mockPredictionBlocks} from "../lib/mock/data";
-import type {PredictionBlock} from "../lib/mock/types";
+import type {PredictionBlock as UiBlock} from "../lib/mock/types";
+import type {PredictionBlock as WalbiBlock} from "../lib/api/walbi-types";
 import {usd, clockFmt} from "../lib/format";
+import {useBalances} from "../store/balances";
+import {useToasts} from "../store/toast";
+import {subscribePredictionUpdates, openPredictionDeal} from "../lib/api/ws";
 
 export const Route = createFileRoute("/predictions")({
   component: PredictionsPage,
 });
 
-const PAIRS = ["BTCUSD", "ETHUSD", "SOLUSD"];
-const TIMEFRAMES = [
-  {sec: 60, label: "1 минута"},
-  {sec: 300, label: "5 минут"},
-  {sec: 900, label: "15 минут"},
+// Walbi has a few prediction instruments. UI exposes the first one currently
+// served — instrument_id arrives with each block, we just pick the latest
+// active for the chosen instrument.
+const INSTRUMENTS = [
+  {id: 1, label: "BTC / USD", pair: "BTCUSD"},
+  {id: 2, label: "ETH / USD", pair: "ETHUSD"},
+  {id: 3, label: "SOL / USD", pair: "SOLUSD"},
 ];
 
-function PredictionsPage() {
-  const [pair, setPair] = useState("BTCUSD");
-  const [tf, setTf] = useState(60);
-  const [blocks, setBlocks] = useState<PredictionBlock[]>(() => mockPredictionBlocks());
-  const [, force] = useState(0);
-  const [bet, setBet] = useState<{side: "long" | "short"; amount: string} | null>(null);
+function walbiToUi(b: WalbiBlock): UiBlock {
+  const up = parseFloat(b.up_amount_usd) || 0;
+  const down = parseFloat(b.down_amount_usd) || 0;
+  return {
+    id: b.uid,
+    pair: "BTCUSD", // pair is inferred from instrument_id on the UI side
+    timeframeSec: Math.max(60, Math.round(b.close_at - b.open_at)),
+    endsAt: b.close_at * 1000,
+    longAmount: up,
+    shortAmount: down,
+    participants: (b.up_count ?? 0) + (b.down_count ?? 0),
+    myShare: 0,
+    myPayout: 0,
+    status:
+      b.status === "settled"
+        ? "finished"
+        : b.status === "closed"
+          ? "settling"
+          : "active",
+  };
+}
 
-  // Re-render every second for countdowns
+function PredictionsPage() {
+  const [instrumentId, setInstrumentId] = useState(INSTRUMENTS[0].id);
+  const [, force] = useState(0);
+  const [bet, setBet] = useState<{
+    side: "long" | "short";
+    amount: string;
+    blockUid: string;
+  } | null>(null);
+
+  // Live block stream from WS push 1700/1701
+  const [blocks, setBlocks] = useState<UiBlock[]>([]);
+
+  useEffect(() => {
+    const off = subscribePredictionUpdates({
+      onBlockSnapshot: (snap) => {
+        if (snap.instrument_id !== instrumentId) return;
+        setBlocks((prev) => upsertBlock(prev, walbiToUi(snap)));
+      },
+      onBlockUpdate: (partial) => {
+        setBlocks((prev) =>
+          prev.map((b) =>
+            b.id === partial.uid
+              ? {
+                  ...b,
+                  longAmount:
+                    partial.up_amount_usd != null
+                      ? parseFloat(partial.up_amount_usd) || 0
+                      : b.longAmount,
+                  shortAmount:
+                    partial.down_amount_usd != null
+                      ? parseFloat(partial.down_amount_usd) || 0
+                      : b.shortAmount,
+                  participants:
+                    partial.up_count != null && partial.down_count != null
+                      ? partial.up_count + partial.down_count
+                      : b.participants,
+                  status:
+                    partial.status === "settled"
+                      ? "finished"
+                      : partial.status === "closed"
+                        ? "settling"
+                        : "active",
+                }
+              : b,
+          ),
+        );
+      },
+    });
+    return off;
+  }, [instrumentId]);
+
+  // Tick countdown
   useEffect(() => {
     const id = window.setInterval(() => force((v) => v + 1), 1000);
     return () => window.clearInterval(id);
   }, []);
 
-  // Roll blocks forward — when active block ends, push a new one
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      setBlocks((bs) => {
-        if (bs[0].endsAt > Date.now()) return bs;
-        const newBlock: PredictionBlock = {
-          id: String(parseInt(bs[0].id) + 1),
-          pair,
-          timeframeSec: tf,
-          endsAt: Date.now() + tf * 1000,
-          longAmount: Math.round(Math.random() * 40 + 10),
-          shortAmount: Math.round(Math.random() * 40 + 10),
-          participants: Math.round(Math.random() * 8 + 2),
-          myShare: 0,
-          myPayout: 0,
-          status: "active",
-        };
-        return [
-          newBlock,
-          {...bs[0], status: "settling"},
-          ...bs.slice(1, 4),
-        ];
-      });
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [pair, tf]);
-
-  const active = blocks[0];
+  // Fallback if WS hasn't delivered anything yet
+  const fallback = useMemo(() => mockPredictionBlocks(), []);
+  const display = blocks.length > 0 ? blocks : fallback;
+  const active = display[0];
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Прогнозы</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">
+          Прогнозы
+          {blocks.length === 0 ? (
+            <span className="ml-2 text-xs font-normal text-muted">(ждём данные…)</span>
+          ) : (
+            <span className="ml-2 text-xs font-normal text-success">live</span>
+          )}
+        </h1>
         <p className="mt-1 text-sm text-muted">
-          Бинарные прогнозы на короткие интервалы — куда пойдёт цена через {tf < 60 ? `${tf} сек.` : `${tf / 60} мин.`}?
+          Бинарные прогнозы на короткие интервалы — куда пойдёт цена?
         </p>
       </header>
 
@@ -73,30 +128,16 @@ function PredictionsPage() {
         <Card.Content className="space-y-3 p-4">
           <div className="flex flex-wrap gap-2">
             <div className="flex items-center gap-1 rounded-xl bg-surface p-1">
-              {PAIRS.map((p) => (
+              {INSTRUMENTS.map((i) => (
                 <button
-                  key={p}
-                  onClick={() => setPair(p)}
+                  key={i.id}
+                  onClick={() => setInstrumentId(i.id)}
                   className={[
                     "rounded-lg px-3 py-1 text-xs transition-colors",
-                    pair === p ? "bg-surface-secondary" : "text-muted",
+                    instrumentId === i.id ? "bg-surface-secondary" : "text-muted",
                   ].join(" ")}
                 >
-                  {p.replace("USD", "")} / USD
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1 rounded-xl bg-surface p-1">
-              {TIMEFRAMES.map((t) => (
-                <button
-                  key={t.sec}
-                  onClick={() => setTf(t.sec)}
-                  className={[
-                    "rounded-lg px-3 py-1 text-xs transition-colors",
-                    tf === t.sec ? "bg-surface-secondary" : "text-muted",
-                  ].join(" ")}
-                >
-                  {t.label}
+                  {i.label}
                 </button>
               ))}
             </div>
@@ -107,14 +148,18 @@ function PredictionsPage() {
       <BlockView
         block={active}
         onBet={(side) =>
-          setBet({side, amount: String(Math.min(50, Math.round(Math.random() * 30 + 10)))})
+          setBet({
+            side,
+            amount: "10",
+            blockUid: active.id,
+          })
         }
       />
 
       <section>
         <div className="mb-2 text-xs uppercase tracking-wider text-muted">История</div>
         <div className="space-y-2">
-          {blocks.slice(1).map((b) => (
+          {display.slice(1).map((b) => (
             <HistoryRow key={b.id} block={b} />
           ))}
         </div>
@@ -125,6 +170,7 @@ function PredictionsPage() {
           block={active}
           side={bet.side}
           amount={bet.amount}
+          blockUid={bet.blockUid}
           onAmountChange={(v) => setBet({...bet, amount: v})}
           onClose={() => setBet(null)}
         />
@@ -133,24 +179,35 @@ function PredictionsPage() {
   );
 }
 
+function upsertBlock(prev: UiBlock[], next: UiBlock): UiBlock[] {
+  const i = prev.findIndex((b) => b.id === next.id);
+  if (i >= 0) {
+    const copy = prev.slice();
+    copy[i] = next;
+    return copy;
+  }
+  // newest-first by endsAt
+  return [next, ...prev].sort((a, b) => b.endsAt - a.endsAt).slice(0, 8);
+}
+
 function BlockView({
   block,
   onBet,
 }: {
-  block: PredictionBlock;
+  block: UiBlock;
   onBet: (side: "long" | "short") => void;
 }) {
   const remaining = Math.max(0, block.endsAt - Date.now());
   const total = block.longAmount + block.shortAmount;
   const longShare = total > 0 ? block.longAmount / total : 0.5;
-  const status = block.status === "settling" ? "Завершается" : "Активный";
+  const status = block.status === "settling" ? "Завершается" : block.status === "finished" ? "Завершён" : "Активный";
 
   return (
     <Card className="rounded-2xl">
       <Card.Content className="space-y-4 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xs text-muted">Блок #{block.id}</div>
+            <div className="text-xs text-muted">Блок {block.id.slice(0, 8)}…</div>
             <div className="text-lg font-medium">{status}</div>
           </div>
           <div className="text-right">
@@ -176,11 +233,11 @@ function BlockView({
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="danger-soft" fullWidth onPress={() => onBet("short")}>
+          <Button variant="danger-soft" fullWidth onPress={() => onBet("short")} isDisabled={block.status !== "active"}>
             <Icon icon="gravity-ui:arrow-down" className="mr-1" />
             Шорт
           </Button>
-          <Button variant="primary" fullWidth onPress={() => onBet("long")}>
+          <Button variant="primary" fullWidth onPress={() => onBet("long")} isDisabled={block.status !== "active"}>
             <Icon icon="gravity-ui:arrow-up" className="mr-1" />
             Лонг
           </Button>
@@ -217,12 +274,12 @@ function Stat({label, value}: {label: string; value: string}) {
   );
 }
 
-function HistoryRow({block}: {block: PredictionBlock}) {
+function HistoryRow({block}: {block: UiBlock}) {
   const total = block.longAmount + block.shortAmount;
-  const longShare = block.longAmount / total;
+  const longShare = total > 0 ? block.longAmount / total : 0.5;
   return (
     <div className="flex items-center gap-3 rounded-xl bg-surface px-3 py-2 text-xs">
-      <span className="text-muted">#{block.id}</span>
+      <span className="text-muted">{block.id.slice(0, 8)}…</span>
       <div className="flex flex-1 items-center gap-2">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-secondary">
           <div className="flex h-full">
@@ -231,7 +288,7 @@ function HistoryRow({block}: {block: PredictionBlock}) {
           </div>
         </div>
       </div>
-      <span className="tabular-nums text-muted">${total}</span>
+      <span className="tabular-nums text-muted">${total.toFixed(0)}</span>
       {block.outcome ? (
         <span
           className={[
@@ -250,20 +307,58 @@ function BetModal({
   block,
   side,
   amount,
+  blockUid,
   onAmountChange,
   onClose,
 }: {
-  block: PredictionBlock;
+  block: UiBlock;
   side: "long" | "short";
   amount: string;
+  blockUid: string;
   onAmountChange: (v: string) => void;
   onClose: () => void;
 }) {
   const num = parseFloat(amount) || 0;
   const opposite = side === "long" ? block.shortAmount : block.longAmount;
   const same = side === "long" ? block.longAmount : block.shortAmount;
-  const myShare = num / (same + num);
+  const myShare = num > 0 ? num / (same + num) : 0;
   const payout = (same + num + opposite) * myShare;
+  const [pending, setPending] = useState(false);
+
+  const push = useToasts((s) => s.push);
+  const accountId = useBalances.getState().byGroup.funding?.account_id ?? useBalances.getState().byGroup.trading?.account_id;
+
+  async function submit() {
+    if (num <= 0) return;
+    if (!accountId) {
+      push({tone: "danger", title: "Нет торгового счёта"});
+      return;
+    }
+    setPending(true);
+    try {
+      const direction = side === "long" ? "up" : "down";
+      await openPredictionDeal({
+        account_id: accountId,
+        block_uid: blockUid,
+        amount: num.toString(),
+        direction,
+      });
+      push({
+        tone: "success",
+        title: `Ставка ${side === "long" ? "Лонг" : "Шорт"} принята`,
+        description: `${num} USDT · блок ${blockUid.slice(0, 8)}…`,
+      });
+      onClose();
+    } catch (err) {
+      push({
+        tone: "danger",
+        title: "Ставка не принята",
+        description: String((err as Error)?.message ?? err),
+      });
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center" onClick={onClose}>
@@ -302,8 +397,14 @@ function BetModal({
           <Row k="Если ошибёшься" v={`−${num.toFixed(2)} USDT`} tone="danger" />
         </div>
 
-        <Button variant="primary" fullWidth onPress={onClose}>
-          Подтвердить ставку
+        <Button
+          variant="primary"
+          fullWidth
+          onPress={submit}
+          isPending={pending}
+          isDisabled={pending || num <= 0}
+        >
+          {pending ? "Отправляю…" : "Подтвердить ставку"}
         </Button>
       </div>
     </div>
