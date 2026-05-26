@@ -1,8 +1,10 @@
 import {Icon} from "@iconify/react";
 import {Card, Button} from "@heroui/react";
+import {useQuery} from "@tanstack/react-query";
 import {PanelChrome} from "./PanelChrome";
 import {AgentAvatar} from "../AIHub/AgentAvatar";
 import {useToasts} from "../../store/toast";
+import {api} from "../../lib/api/rest";
 
 interface MenuItem {
   icon: string;
@@ -29,18 +31,59 @@ const MENU: MenuItem[] = [
 export function ProfilePanel() {
   const push = useToasts((s) => s.push);
 
+  // LIVE data: hits /api/walbi/user/profile/v1 via proxy → walbi-mcp → gw.walbi.com
+  const profile = useQuery({
+    queryKey: ["user", "profile"],
+    queryFn: () => api.user.profile(),
+    staleTime: 5 * 60_000,
+  });
+
+  const displayName = profile.data?.name ?? "Walbi user";
+  const displayEmail = profile.data?.email ?? "";
+  const displayId = profile.data?.user_id;
+  const isLoading = profile.isLoading;
+  const isError = profile.isError;
+
   return (
     <PanelChrome title="Профиль">
       <div className="space-y-4 p-4">
         <Card className="rounded-2xl">
           <Card.Content className="flex items-center gap-3 p-4">
-            <AgentAvatar name="Sergey Stotskii" size={48} />
+            {profile.data?.picture ? (
+              <img
+                src={profile.data.picture}
+                alt={displayName}
+                className="size-12 rounded-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <AgentAvatar name={displayName} size={48} />
+            )}
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold">Sergey Stotskii</div>
-              <div className="truncate text-[11px] text-muted">stotskii@gmail.com</div>
+              <div className="text-sm font-semibold">
+                {isLoading ? "…" : displayName}
+              </div>
+              <div className="truncate text-[11px] text-muted">
+                {isLoading ? "загрузка…" : displayEmail || "—"}
+              </div>
               <div className="mt-1 flex items-center gap-1 text-[10px]">
-                <span className="rounded-full bg-success/15 px-1.5 py-0.5 text-success">Активен</span>
-                <span className="rounded-full bg-surface-secondary px-1.5 py-0.5 text-muted">ID #2194502</span>
+                <span
+                  className={[
+                    "rounded-full px-1.5 py-0.5",
+                    isError
+                      ? "bg-danger/15 text-danger"
+                      : isLoading
+                        ? "bg-surface-secondary text-muted"
+                        : "bg-success/15 text-success",
+                  ].join(" ")}
+                >
+                  {isError ? "Offline" : isLoading ? "…" : "Live"}
+                </span>
+                {displayId ? (
+                  <span className="rounded-full bg-surface-secondary px-1.5 py-0.5 text-muted">
+                    ID #{displayId}
+                  </span>
+                ) : null}
               </div>
             </div>
           </Card.Content>

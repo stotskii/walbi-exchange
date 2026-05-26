@@ -22,8 +22,11 @@ import type {
   UserProfile,
 } from "./walbi-types";
 
+// In production we go through our BFF at the same origin:
+//   /api/walbi/<domain>/<action>/v<n> → walbi-exchange-proxy → walbi-mcp → gw.walbi.com
+// In local dev set VITE_WALBI_GATEWAY to point at a deployed proxy or local one.
 const GATEWAY =
-  import.meta.env.VITE_WALBI_GATEWAY ?? "https://gw.walbi.com";
+  import.meta.env.VITE_WALBI_GATEWAY ?? "/api/walbi";
 
 const TOKEN_KEY = "walbi:access_token";
 
@@ -55,7 +58,12 @@ async function rpc<TReq, TRes>(
   version: number,
   body?: TReq,
 ): Promise<TRes> {
-  const url = `${GATEWAY}/api/${domain}/${action}/v${version}`;
+  // GATEWAY is either our own proxy path (/api/walbi) or a full URL. If it
+  // ends with /walbi we're talking to the proxy, which expects /<domain>/...
+  // and prepends /api internally.
+  const url = GATEWAY.endsWith("/api/walbi")
+    ? `${GATEWAY}/${domain}/${action}/v${version}`
+    : `${GATEWAY}/api/${domain}/${action}/v${version}`;
   const token = getAccessToken();
 
   const res = await fetch(url, {
