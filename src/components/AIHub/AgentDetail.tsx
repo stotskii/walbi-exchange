@@ -11,13 +11,15 @@ import {usd, pct, num} from "../../lib/format";
 
 export function AgentDetail() {
   const agent = useUI((s) => s.selectedAgent);
+  const isAgentRunning = useUI((s) => s.isAgentRunning);
+  const toggleRunning = useUI((s) => s.toggleRunningAgent);
   const push = useToasts((s) => s.push);
 
   if (!agent) {
     return <Overview />;
   }
 
-  const isRunning = agent.openPositions > 0;
+  const isRunning = isAgentRunning(agent.id) || agent.openPositions > 0;
   const riskColor =
     agent.riskLevel === "low"
       ? "text-success"
@@ -94,29 +96,33 @@ export function AgentDetail() {
 
       <div className="grid grid-cols-2 gap-2">
         <Button
-          variant="primary"
+          variant={isRunning ? "outline" : "primary"}
           size="sm"
-          onPress={() =>
+          isDisabled={isRunning}
+          onPress={() => {
+            toggleRunning(agent.id);
             push({
               title: `${agent.name} запущен`,
               description: `Стратегия активна, риск-лимит 2% от баланса`,
               tone: "success",
-            })
-          }
+            });
+          }}
         >
           <Icon icon="gravity-ui:play" className="mr-1" />
-          Запустить
+          {isRunning ? "Запущен" : "Запустить"}
         </Button>
         <Button
           variant="danger-soft"
           size="sm"
-          onPress={() =>
+          isDisabled={!isRunning}
+          onPress={() => {
+            toggleRunning(agent.id);
             push({
               title: `${agent.name} на паузе`,
               description: "Новые позиции открываться не будут",
               tone: "info",
-            })
-          }
+            });
+          }}
         >
           <Icon icon="gravity-ui:pause" className="mr-1" />
           Пауза

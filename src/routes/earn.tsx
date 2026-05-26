@@ -2,14 +2,18 @@ import {createFileRoute, Link} from "@tanstack/react-router";
 import {Card} from "@heroui/react";
 import {Icon} from "@iconify/react";
 
+import {useUI, type SidebarPanel} from "../store/ui";
+
+// Mobile "Экшены" hub. On desktop the same content lives in a right-side
+// sidebar; here it's a full page so the bottom-tab paradigm works. Each
+// row opens the matching drill-down sidebar.
+
 export const Route = createFileRoute("/earn")({
   component: EarnPage,
 });
 
-// Mobile "Экшены" hub. On desktop the same content lives in a right-side
-// sidebar; here it's a full page so the bottom-tab paradigm works.
-
 function EarnPage() {
+  const openPanel = useUI((s) => s.openPanel);
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
       <h1 className="text-2xl font-semibold tracking-tight">Экшены</h1>
@@ -35,11 +39,11 @@ function EarnPage() {
         </h2>
         <Card className="rounded-2xl">
           <Card.Content className="divide-y divide-border p-0">
-            <Row title="Реферальная программа" hint="Активные рефералы · 0" />
-            <Row title="Майнер" hint="Добытые баллы · 0,0000" />
-            <Row title="Ваучеры" hint="Кэшбэк по комиссиям" />
-            <Row title="Эйрдропы" hint="История розыгрышей" />
-            <Row title="Задачи" hint="Получай PTS за активность" badge="1" />
+            <Row title="Реферальная программа" hint="Активные рефералы · 0" onClick={() => openPanel("earn-referral")} />
+            <Row title="Майнер" hint="Добытые баллы · 0,0000" onClick={() => openPanel("earn-miner")} />
+            <Row title="Ваучеры" hint="Кэшбэк по комиссиям" onClick={() => openPanel("earn-vouchers")} />
+            <Row title="Эйрдропы" hint="История розыгрышей" onClick={() => openPanel("earn-airdrops")} />
+            <Row title="Задачи" hint="Получай PTS за активность" badge="1" onClick={() => openPanel("earn-tasks")} />
           </Card.Content>
         </Card>
       </div>
@@ -79,13 +83,18 @@ function Row({
   title,
   hint,
   badge,
+  onClick,
 }: {
   title: string;
   hint: string;
   badge?: string;
+  onClick?: () => void;
 }) {
   return (
-    <button className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-secondary">
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-surface-secondary"
+    >
       <div className="flex-1">
         <div className="text-sm">{title}</div>
         <div className="text-xs text-muted">{hint}</div>
@@ -99,3 +108,6 @@ function Row({
     </button>
   );
 }
+
+// Re-export for type hint in dev — the panel store accepts these strings
+void (null as unknown as SidebarPanel);

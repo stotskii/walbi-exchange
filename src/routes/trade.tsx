@@ -25,7 +25,8 @@ function TradePage() {
   const up = pairData.change24h >= 0;
   const push = useToasts((s) => s.push);
   const [tf, setTf] = useState<(typeof TIMEFRAMES)[number]>("1H");
-  const [favorite, setFavorite] = useState(false);
+  const favorite = useUI((s) => s.isFavorite(pair));
+  const toggleFavorite = useUI((s) => s.toggleFavorite);
 
   return (
     <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-2 p-2 md:p-3">
@@ -44,7 +45,7 @@ function TradePage() {
         <Stat label="Макс. плечо" value={`×${pairData.maxLeverage}`} />
         <button
           onClick={() => {
-            setFavorite((v) => !v);
+            toggleFavorite(pair);
             push({title: favorite ? "Удалено из избранного" : `${pair} в избранном`, tone: "info", ttl: 2000});
           }}
           className="ml-auto flex items-center gap-1 text-muted hover:text-foreground"

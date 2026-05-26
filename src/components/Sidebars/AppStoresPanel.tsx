@@ -1,6 +1,9 @@
 import {Icon} from "@iconify/react";
 import {PanelChrome} from "./PanelChrome";
 
+const APP_STORE_URL = "https://apps.apple.com/app/walbi/id6478226574";
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.walbi.app";
+
 export function AppStoresPanel() {
   return (
     <PanelChrome title="Мобильное приложение">
@@ -14,11 +17,21 @@ export function AppStoresPanel() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <a className="flex items-center justify-center gap-2 rounded-xl bg-surface px-4 py-3 text-sm transition-colors hover:bg-surface-secondary">
+          <a
+            href={APP_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl bg-surface px-4 py-3 text-sm no-underline transition-colors hover:bg-surface-secondary"
+          >
             <Icon icon="gravity-ui:logo-apple" className="size-5" />
             App Store
           </a>
-          <a className="flex items-center justify-center gap-2 rounded-xl bg-surface px-4 py-3 text-sm transition-colors hover:bg-surface-secondary">
+          <a
+            href={PLAY_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-xl bg-surface px-4 py-3 text-sm no-underline transition-colors hover:bg-surface-secondary"
+          >
             <Icon icon="gravity-ui:logo-google" className="size-5" />
             Google Play
           </a>

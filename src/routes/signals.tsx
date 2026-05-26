@@ -7,7 +7,7 @@ import {Icon} from "@iconify/react";
 import {mockSignals, PAIRS} from "../lib/mock/data";
 import type {SignalCard, Position} from "../lib/mock/types";
 import {AgentAvatar} from "../components/AIHub/AgentAvatar";
-import {relativeTime} from "../lib/format";
+import {relativeTime, priceFmt, pct} from "../lib/format";
 import {usePositions} from "../store/positions";
 import {useToasts} from "../store/toast";
 
@@ -21,6 +21,8 @@ const ONBOARDING_STEPS = [
   {emoji: "📈", title: "Зарабатывай", description: "Лучшие сигналы — от агентов с высоким APR"},
 ];
 
+const SIGNAL_PREFIX = "p-sig-";
+
 function SignalsPage() {
   const all = useMemo(() => mockSignals(), []);
   const [index, setIndex] = useState(0);
@@ -31,7 +33,12 @@ function SignalsPage() {
   const [tab, setTab] = useState<"feed" | "positions">("feed");
 
   const addPosition = usePositions((s) => s.add);
+  const positions = usePositions((s) => s.positions);
+  const closePosition = usePositions((s) => s.close);
   const push = useToasts((s) => s.push);
+
+  // positions opened via signals (tagged by id prefix)
+  const signalPositions = positions.filter((p) => p.id.startsWith(SIGNAL_PREFIX));
 
   function dismissOnboarding() {
     window.localStorage.setItem("walbi:signals-onboarded", "1");
@@ -53,7 +60,7 @@ function SignalsPage() {
         : +(entry * (1 + 1 / s.leverage)).toFixed(entry < 1 ? 6 : 2);
 
     const pos: Position = {
-      id: `p-${Date.now()}`,
+      id: `${SIGNAL_PREFIX}${Date.now()}`,
       pair: pairSymbol,
       side: dir,
       size: s.amountUsdt,
@@ -128,11 +135,16 @@ function SignalsPage() {
               key={t}
               onClick={() => setTab(t)}
               className={[
-                "rounded-lg px-3 py-1 transition-colors",
+                "flex items-center gap-1.5 rounded-lg px-3 py-1 transition-colors",
                 tab === t ? "bg-surface-secondary" : "text-muted",
               ].join(" ")}
             >
               {t === "feed" ? "Лента" : "Позиции"}
+              {t === "positions" && signalPositions.length > 0 ? (
+                <span className="rounded-full bg-accent/20 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                  {signalPositions.length}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -164,11 +176,52 @@ function SignalsPage() {
           ) : null}
         </div>
       ) : (
-        <Card className="rounded-2xl">
-          <Card.Content className="p-8 text-center text-sm text-muted">
-            Открытых позиций по сигналам нет. Открой через свайп.
-          </Card.Content>
-        </Card>
+        <div className="space-y-2">
+          {signalPositions.length === 0 ? (
+            <Card className="rounded-2xl">
+              <Card.Content className="p-8 text-center text-sm text-muted">
+                Открытых позиций по сигналам нет. Свайпни сигнал вправо чтобы открыть.
+              </Card.Content>
+            </Card>
+          ) : (
+            signalPositions.map((p) => (
+              <Card key={p.id} className="rounded-2xl">
+                <Card.Content className="p-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-md bg-surface-secondary px-2 py-0.5 text-xs">{p.pair}</span>
+                      <span className={p.side === "long" ? "text-success" : "text-danger"}>
+                        {p.side === "long" ? "Лонг" : "Шорт"}
+                      </span>
+                      <span className="text-xs text-muted">×{p.leverage}</span>
+                    </div>
+                    <span className={p.pnl >= 0 ? "text-success" : "text-danger"}>
+                      {p.pnl.toFixed(2)} ({pct(p.pnlPct)})
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted">
+                    <div>Размер: {p.size}</div>
+                    <div>Вход: {priceFmt(p.entryPrice)}</div>
+                    <div>Ликвид: {priceFmt(p.liquidationPrice)}</div>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="danger-soft"
+                      fullWidth
+                      onPress={() => {
+                        closePosition(p.id);
+                        push({title: `${p.pair} закрыта`, tone: p.pnl >= 0 ? "success" : "danger"});
+                      }}
+                    >
+                      Закрыть
+                    </Button>
+                  </div>
+                </Card.Content>
+              </Card>
+            ))
+          )}
+        </div>
       )}
     </div>
   );

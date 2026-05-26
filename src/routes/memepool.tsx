@@ -45,7 +45,14 @@ function MemepoolPage() {
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm uppercase tracking-wider text-muted">🔥 В тренде</h2>
-          <button className="text-xs text-muted hover:text-foreground">Все →</button>
+          <button
+            onClick={() => {
+              document.getElementById("memepool-popular")?.scrollIntoView({behavior: "smooth", block: "start"});
+            }}
+            className="text-xs text-muted transition-colors hover:text-foreground"
+          >
+            Все ↓
+          </button>
         </div>
         <div className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
           {trending.map((t) => (
@@ -54,7 +61,7 @@ function MemepoolPage() {
         </div>
       </section>
 
-      <Card className="rounded-2xl">
+      <Card className="rounded-2xl" id="memepool-popular">
         <div className="flex flex-col gap-3 border-b border-border p-4 md:flex-row md:items-center">
           <h2 className="text-sm font-medium">Популярные</h2>
 
