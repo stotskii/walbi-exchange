@@ -4,9 +4,12 @@ import {Icon} from "@iconify/react";
 
 import {PAIRS} from "../../lib/mock/data";
 import {priceFmt, usd} from "../../lib/format";
+import {usePositions} from "../../store/positions";
+import {useToasts} from "../../store/toast";
+import type {Position} from "../../lib/mock/types";
 
 type OrderType = "market" | "limit";
-type Side = "long" | "short" | null;
+type Side = "long" | "short";
 
 export function OrderForm({pair}: {pair: string}) {
   const pairData = PAIRS.find((p) => p.symbol === pair);
@@ -21,11 +24,49 @@ export function OrderForm({pair}: {pair: string}) {
   const [tpPct, setTpPct] = useState("32");
   const [slPct, setSlPct] = useState("13");
   const [isolated, setIsolated] = useState(true);
-  const [side, setSide] = useState<Side>(null);
+  const [pending, setPending] = useState<Side | null>(null);
+
+  const addPosition = usePositions((s) => s.add);
+  const pushToast = useToasts((s) => s.push);
 
   const num = parseFloat(amount) || 0;
   const fee = num * 0.001;
-  const valid = num >= 1;
+  const valid = num >= 1 && pairData != null;
+
+  function openPosition(side: Side) {
+    if (!valid || !pairData) return;
+    setPending(side);
+
+    const entry =
+      type === "limit" ? parseFloat(limitPrice) || pairData.price : pairData.price;
+
+    // Fake roundtrip — keep UI honest about the loading state.
+    window.setTimeout(() => {
+      const pos: Position = {
+        id: `p-${Date.now()}`,
+        pair,
+        side,
+        size: num,
+        entryPrice: entry,
+        markPrice: pairData.price,
+        leverage,
+        pnl: 0,
+        pnlPct: 0,
+        liquidationPrice:
+          side === "long"
+            ? +(entry * (1 - 1 / leverage)).toFixed(pairData.price < 1 ? 6 : 2)
+            : +(entry * (1 + 1 / leverage)).toFixed(pairData.price < 1 ? 6 : 2),
+      };
+      addPosition(pos);
+      pushToast({
+        title: `${side === "long" ? "Лонг" : "Шорт"} ${pair} открыт`,
+        description: `${usd(num)} ${pairData.quote} · плечо ×${leverage} · вход ${priceFmt(entry)}`,
+        tone: "success",
+      });
+      setPending(null);
+      setAmount("0");
+    }, 650);
+  }
 
   return (
     <div className="flex flex-col gap-3 text-sm">
@@ -82,7 +123,7 @@ export function OrderForm({pair}: {pair: string}) {
         {[10, 25, 50, 100].map((p) => (
           <button
             key={p}
-            onClick={() => setAmount(((59014 * p) / 100).toFixed(2))}
+            onClick={() => setAmount(((5554.2 * p) / 100).toFixed(2))}
             className="rounded-lg bg-surface-secondary px-2 py-1 text-[11px] text-muted transition-colors hover:text-foreground"
           >
             {p}%
@@ -161,25 +202,27 @@ export function OrderForm({pair}: {pair: string}) {
       {/* Validation */}
       {!valid ? (
         <p className="rounded-lg border border-warning/30 bg-warning/5 px-2 py-1.5 text-[11px] text-warning">
-          Выберите значение больше 1,00 USDT
+          Введите сумму больше 1,00 USDT
         </p>
       ) : null}
 
       {/* CTA */}
       <div className="grid grid-cols-2 gap-2 pt-1">
         <Button
-          variant={side === "short" ? "danger" : "primary"}
-          isDisabled={!valid}
-          onPress={() => setSide("long")}
+          variant="primary"
+          isDisabled={!valid || pending !== null}
+          isPending={pending === "long"}
+          onPress={() => openPosition("long")}
         >
-          Открыть Лонг
+          {pending === "long" ? "Открываю…" : "Открыть Лонг"}
         </Button>
         <Button
           variant="danger"
-          isDisabled={!valid}
-          onPress={() => setSide("short")}
+          isDisabled={!valid || pending !== null}
+          isPending={pending === "short"}
+          onPress={() => openPosition("short")}
         >
-          Открыть Шорт
+          {pending === "short" ? "Открываю…" : "Открыть Шорт"}
         </Button>
       </div>
     </div>

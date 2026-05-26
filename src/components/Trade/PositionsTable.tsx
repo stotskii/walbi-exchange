@@ -1,6 +1,7 @@
 import {useState} from "react";
 import {Button} from "@heroui/react";
-import {MOCK_POSITIONS} from "../../lib/mock/data";
+import {usePositions} from "../../store/positions";
+import {useToasts} from "../../store/toast";
 import {priceFmt, usd, pct} from "../../lib/format";
 
 const TABS = [
@@ -11,6 +12,9 @@ const TABS = [
 
 export function PositionsTable() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("positions");
+  const positions = usePositions((s) => s.positions);
+  const closePosition = usePositions((s) => s.close);
+  const pushToast = useToasts((s) => s.push);
 
   return (
     <div>
@@ -18,18 +22,24 @@ export function PositionsTable() {
         <div className="flex">
           {TABS.map((t) => {
             const active = t.id === tab;
+            const count = t.id === "positions" ? positions.length : 0;
             return (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
                 className={[
-                  "px-4 py-3 text-sm transition-colors",
+                  "flex items-center gap-1.5 px-4 py-3 text-sm transition-colors",
                   active
                     ? "border-b-2 border-accent text-foreground"
                     : "text-muted hover:text-foreground",
                 ].join(" ")}
               >
                 {t.label}
+                {count > 0 ? (
+                  <span className="rounded-full bg-surface-secondary px-1.5 py-0.5 text-[10px] font-medium">
+                    {count}
+                  </span>
+                ) : null}
               </button>
             );
           })}
@@ -38,9 +48,9 @@ export function PositionsTable() {
       </div>
 
       {tab === "positions" ? (
-        MOCK_POSITIONS.length === 0 ? (
+        positions.length === 0 ? (
           <div className="py-10 text-center text-sm text-muted">
-            Открытых позиций нет
+            Открытых позиций нет. Заполни форму справа и нажми «Открыть Лонг».
           </div>
         ) : (
           <table className="w-full text-xs tabular-nums">
@@ -57,15 +67,11 @@ export function PositionsTable() {
               </tr>
             </thead>
             <tbody>
-              {MOCK_POSITIONS.map((p) => (
+              {positions.map((p) => (
                 <tr key={p.id} className="border-t border-border">
                   <Td>{p.pair} · ×{p.leverage}</Td>
                   <Td>
-                    <span
-                      className={
-                        p.side === "long" ? "text-success" : "text-danger"
-                      }
-                    >
+                    <span className={p.side === "long" ? "text-success" : "text-danger"}>
                       {p.side === "long" ? "Лонг" : "Шорт"}
                     </span>
                   </Td>
@@ -81,7 +87,20 @@ export function PositionsTable() {
                   <Td>
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost">TP/SL</Button>
-                      <Button size="sm" variant="danger-soft">Закрыть</Button>
+                      <Button
+                        size="sm"
+                        variant="danger-soft"
+                        onPress={() => {
+                          closePosition(p.id);
+                          pushToast({
+                            title: `Позиция ${p.pair} закрыта`,
+                            description: `${p.side === "long" ? "Лонг" : "Шорт"} · PnL ${p.pnl.toFixed(2)} USDT`,
+                            tone: p.pnl >= 0 ? "success" : "danger",
+                          });
+                        }}
+                      >
+                        Закрыть
+                      </Button>
                     </div>
                   </Td>
                 </tr>

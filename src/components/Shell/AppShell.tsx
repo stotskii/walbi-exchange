@@ -3,6 +3,7 @@ import {Topbar} from "./Topbar";
 import {BottomTabs} from "./BottomTabs";
 import {PromoStrip} from "./PromoStrip";
 import {SidebarHost} from "../Sidebars/SidebarHost";
+import {ToastHost} from "./ToastHost";
 
 /**
  * Top-level app chrome.
@@ -23,6 +24,7 @@ export function AppShell({children}: {children: ReactNode}) {
       </main>
       <BottomTabs />
       <SidebarHost />
+      <ToastHost />
     </div>
   );
 }
