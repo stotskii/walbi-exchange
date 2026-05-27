@@ -109,41 +109,44 @@ function PredictionsPage() {
   const active = display[0];
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Прогнозы
-          {blocks.length === 0 ? (
-            <span className="ml-2 text-xs font-normal text-muted">(ждём данные…)</span>
-          ) : (
-            <span className="ml-2 text-xs font-normal text-success">live</span>
-          )}
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Бинарные прогнозы на короткие интервалы — куда пойдёт цена?
-        </p>
-      </header>
-
-      <Card className="rounded-lg">
-        <Card.Content className="space-y-3 p-4">
-          <div className="flex flex-wrap gap-2">
-            <div className="flex items-center gap-1 rounded-xl bg-surface p-1">
-              {INSTRUMENTS.map((i) => (
-                <button
-                  key={i.id}
-                  onClick={() => setInstrumentId(i.id)}
-                  className={[
-                    "rounded-lg px-3 py-1 text-xs transition-colors",
-                    instrumentId === i.id ? "bg-surface-secondary" : "text-muted",
-                  ].join(" ")}
-                >
-                  {i.label}
-                </button>
-              ))}
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-5 py-6">
+      <header className="space-y-3 border-b border-separator pb-4">
+        <div className="flex items-end justify-between">
+          <div>
+            <div className="eyebrow mb-1.5 flex items-center gap-1.5">
+              Бинарные прогнозы
+              {blocks.length > 0 ? <span className="live-dot" aria-hidden /> : null}
             </div>
+            <h1 className="text-[28px] font-medium leading-none tracking-tight md:text-[34px]">
+              Прогнозы
+            </h1>
           </div>
-        </Card.Content>
-      </Card>
+          <span className="mono text-[11px] text-mute-2">
+            {blocks.length === 0 ? "ждём поток…" : `${blocks.length} блок(ов)`}
+          </span>
+        </div>
+        <p className="max-w-md text-[13px] text-mute-2">
+          Куда пойдёт цена в ближайшем коротком интервале — вверх или вниз. Пул
+          ставок делится между правильно угадавшими, пропорционально размеру.
+        </p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
+          {INSTRUMENTS.map((i) => (
+            <button
+              key={i.id}
+              onClick={() => setInstrumentId(i.id)}
+              className={[
+                "relative pb-1 mono tabular-nums transition-colors",
+                instrumentId === i.id ? "text-foreground" : "text-mute-2 hover:text-foreground",
+              ].join(" ")}
+            >
+              {i.label}
+              {instrumentId === i.id ? (
+                <span className="absolute inset-x-0 -bottom-[17px] h-px bg-accent" />
+              ) : null}
+            </button>
+          ))}
+        </div>
+      </header>
 
       <BlockView
         block={active}

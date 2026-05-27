@@ -24,18 +24,25 @@ export function ActionModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-overlay md:items-center"
+      onClick={onClose}
+    >
       <div
-        className="walbi-fade-in flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-border bg-background md:rounded-xl"
+        className="walbi-fade-in flex max-h-[90vh] w-full max-w-[460px] flex-col overflow-hidden border border-border-strong bg-background shadow-overlay"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-border p-4">
-          <h2 className="font-semibold">{TITLES[action]}</h2>
-          <button onClick={onClose} className="rounded p-1 text-muted hover:bg-surface-secondary" aria-label="Закрыть">
-            <Icon icon="gravity-ui:xmark" className="size-5" />
+        <header className="flex items-baseline justify-between border-b border-separator px-5 py-3">
+          <div className="eyebrow">{TITLES[action]}</div>
+          <button
+            onClick={onClose}
+            className="text-mute-2 transition-colors hover:text-foreground"
+            aria-label="Закрыть"
+          >
+            <Icon icon="ph:x-bold" className="size-4" />
           </button>
         </header>
-        <div className="overflow-y-auto p-4">
+        <div className="overflow-y-auto px-5 py-5">
           {action === "deposit" ? <DepositForm onClose={onClose} /> : null}
           {action === "withdraw" ? <WithdrawForm onClose={onClose} /> : null}
           {action === "transfer" ? <TransferForm onClose={onClose} /> : null}

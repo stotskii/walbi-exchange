@@ -85,13 +85,25 @@ function MemepoolPage() {
   const portfolioPnl = portfolio.data?.total_unrealized_pnl_percent ?? 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-4 p-4">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Мемепул</h1>
-        <div className="flex items-center gap-2 rounded-xl bg-surface px-3 py-1.5 text-xs">
-          <span className="text-muted">Портфолио</span>
-          <span className="font-medium">${usd(totalPortfolio)}</span>
-          <span className={portfolioPnl >= 0 ? "text-success" : "text-danger"}>
+    <div className="mx-auto flex w-full max-w-screen-2xl flex-col gap-5 px-5 py-6">
+      <header className="flex items-end justify-between border-b border-separator pb-4">
+        <div>
+          <div className="eyebrow mb-1.5">Solana · spot</div>
+          <h1 className="text-[28px] font-medium leading-none tracking-tight md:text-[34px]">
+            Мемепул
+          </h1>
+        </div>
+        <div className="flex items-baseline gap-5 text-[12px]">
+          <span className="flex items-baseline gap-1.5">
+            <span className="eyebrow">Портфолио</span>
+            <span className="mono tabular-nums">${usd(totalPortfolio)}</span>
+          </span>
+          <span
+            className={[
+              "mono tabular-nums",
+              portfolioPnl >= 0 ? "text-success" : "text-danger",
+            ].join(" ")}
+          >
             {portfolioPnl >= 0 ? "+" : ""}
             {portfolioPnl.toFixed(2)}%
           </span>

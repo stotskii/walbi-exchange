@@ -34,18 +34,26 @@ export function CandleChart({pair, height = 380, size = 3600}: Props) {
   // Init chart once
   useEffect(() => {
     if (!containerRef.current) return;
+    // Pull colors from our design tokens so chart matches the rest of the UI.
+    const css = getComputedStyle(document.documentElement);
+    const success = css.getPropertyValue("--color-success").trim() || "#22c55e";
+    const danger = css.getPropertyValue("--color-danger").trim() || "#ef4444";
+    const mono = css.getPropertyValue("--font-mono").trim() || "JetBrains Mono, monospace";
+    const muted = "oklch(60% 0.012 230)";
+    const hairline = "oklch(28% 0.012 230 / 0.4)";
+
     const chart = createChart(containerRef.current, {
       height,
       layout: {
         background: {color: "transparent"},
-        textColor: "rgba(255,255,255,0.55)",
-        fontFamily:
-          "Inter, ui-sans-serif, system-ui, -apple-system, sans-serif",
+        textColor: muted,
+        fontFamily: mono,
+        fontSize: 11,
         attributionLogo: false,
       },
       grid: {
-        vertLines: {color: "rgba(255,255,255,0.04)"},
-        horzLines: {color: "rgba(255,255,255,0.04)"},
+        vertLines: {color: hairline, style: 0},
+        horzLines: {color: hairline, style: 0},
       },
       rightPriceScale: {borderVisible: false},
       timeScale: {borderVisible: false, timeVisible: true},
@@ -55,12 +63,12 @@ export function CandleChart({pair, height = 380, size = 3600}: Props) {
     });
 
     const series = chart.addSeries(CandlestickSeries, {
-      upColor: "#22c55e",
-      downColor: "#ef4444",
-      borderUpColor: "#22c55e",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#22c55e",
-      wickDownColor: "#ef4444",
+      upColor: success,
+      downColor: danger,
+      borderUpColor: success,
+      borderDownColor: danger,
+      wickUpColor: success,
+      wickDownColor: danger,
     });
     chartRef.current = chart;
     seriesRef.current = series;

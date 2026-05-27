@@ -15,8 +15,13 @@ export const Route = createFileRoute("/earn")({
 function EarnPage() {
   const openPanel = useUI((s) => s.openPanel);
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Экшены</h1>
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-5 py-6">
+      <header className="border-b border-separator pb-4">
+        <div className="eyebrow mb-1.5">Активности · мобильный хаб</div>
+        <h1 className="text-[28px] font-medium leading-none tracking-tight">
+          Экшены
+        </h1>
+      </header>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <HubCard

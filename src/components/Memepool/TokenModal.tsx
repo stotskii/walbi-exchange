@@ -80,16 +80,31 @@ export function TokenModal({
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const css = getComputedStyle(document.documentElement);
+    const success = css.getPropertyValue("--color-success").trim() || "#22c55e";
+    const danger = css.getPropertyValue("--color-danger").trim() || "#ef4444";
+    const monoFont = css.getPropertyValue("--font-mono").trim() || "JetBrains Mono, monospace";
+
     const chart = createChart(containerRef.current, {
       height: 240,
-      layout: {background: {color: "transparent"}, textColor: "rgba(255,255,255,0.5)", attributionLogo: false},
-      grid: {vertLines: {visible: false}, horzLines: {color: "rgba(255,255,255,0.04)"}},
+      layout: {
+        background: {color: "transparent"},
+        textColor: "oklch(60% 0.012 230)",
+        fontFamily: monoFont,
+        fontSize: 11,
+        attributionLogo: false,
+      },
+      grid: {
+        vertLines: {visible: false},
+        horzLines: {color: "oklch(28% 0.012 230 / 0.3)"},
+      },
       rightPriceScale: {borderVisible: false},
       timeScale: {borderVisible: false, timeVisible: true},
     });
+    const positive = token.changePct >= 0;
     const series = chart.addSeries(AreaSeries, {
-      lineColor: token.changePct >= 0 ? "#22c55e" : "#ef4444",
-      topColor: token.changePct >= 0 ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)",
+      lineColor: positive ? success : danger,
+      topColor: positive ? "oklch(68% 0.13 145 / 0.3)" : "oklch(60% 0.16 25 / 0.3)",
       bottomColor: "transparent",
       lineWidth: 2,
     });

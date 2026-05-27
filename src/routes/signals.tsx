@@ -187,24 +187,32 @@ function SignalsPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-3 p-4">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight">Сигналы</h1>
-        <div className="flex items-center gap-1 rounded-xl bg-surface p-1 text-xs">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-5">
+      <header className="space-y-3 border-b border-separator pb-3">
+        <div>
+          <div className="eyebrow mb-1.5">Lighthouse · live feed</div>
+          <h1 className="text-[28px] font-medium leading-none tracking-tight">
+            Сигналы
+          </h1>
+        </div>
+        <div className="-mx-1 flex gap-1 px-1">
           {(["feed", "positions"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={[
-                "flex items-center gap-1.5 rounded-lg px-3 py-1 transition-colors",
-                tab === t ? "bg-surface-secondary" : "text-muted",
+                "relative flex items-baseline gap-2 px-2 py-1 text-[13px] transition-colors",
+                tab === t ? "text-foreground" : "text-mute-2 hover:text-foreground",
               ].join(" ")}
             >
-              {t === "feed" ? "Лента" : "Позиции"}
+              <span>{t === "feed" ? "Лента" : "Позиции"}</span>
               {t === "positions" && signalPositions.length > 0 ? (
-                <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                <span className="mono text-[10px] tabular-nums text-accent">
                   {signalPositions.length}
                 </span>
+              ) : null}
+              {tab === t ? (
+                <span className="absolute inset-x-1 -bottom-[13px] h-px bg-accent" />
               ) : null}
             </button>
           ))}
