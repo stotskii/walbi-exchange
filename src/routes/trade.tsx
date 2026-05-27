@@ -28,7 +28,9 @@ const TIMEFRAMES = [
 
 function TradePage() {
   const pair = useUI((s) => s.currentPair);
-  const pairData = PAIRS.find((p) => p.symbol === pair)!;
+  // Defensive: persisted UI store may carry a stale pair that no longer
+  // exists in PAIRS — fall back to BTCUSD rather than crashing the route.
+  const pairData = PAIRS.find((p) => p.symbol === pair) ?? PAIRS[0];
   const up = pairData.change24h >= 0;
   const push = useToasts((s) => s.push);
   const [tf, setTf] = useState<(typeof TIMEFRAMES)[number]>(TIMEFRAMES[3]);
