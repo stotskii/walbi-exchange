@@ -124,7 +124,7 @@ function PredictionsPage() {
         </p>
       </header>
 
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <Card.Content className="space-y-3 p-4">
           <div className="flex flex-wrap gap-2">
             <div className="flex items-center gap-1 rounded-xl bg-surface p-1">
@@ -203,7 +203,7 @@ function BlockView({
   const status = block.status === "settling" ? "Завершается" : block.status === "finished" ? "Завершён" : "Активный";
 
   return (
-    <Card className="rounded-2xl">
+    <Card className="rounded-lg">
       <Card.Content className="space-y-4 p-4">
         <div className="flex items-center justify-between">
           <div>
@@ -293,7 +293,7 @@ function HistoryRow({block}: {block: UiBlock}) {
         <span
           className={[
             "rounded-full px-2 py-0.5 text-[10px] font-medium",
-            block.outcome === "long" ? "bg-success/15 text-success" : "bg-danger/15 text-danger",
+            block.outcome === "long" ? "bg-success-soft text-success" : "bg-danger-soft text-danger",
           ].join(" ")}
         >
           {block.outcome === "long" ? "Лонг" : "Шорт"}
@@ -363,7 +363,7 @@ function BetModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center" onClick={onClose}>
       <div
-        className="walbi-fade-in w-full max-w-md rounded-t-3xl border border-border bg-background p-4 md:rounded-3xl"
+        className="walbi-fade-in w-full max-w-md rounded-t-xl border border-border bg-background p-4 md:rounded-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">

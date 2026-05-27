@@ -47,7 +47,7 @@ export function ProfilePanel() {
   return (
     <PanelChrome title="Профиль">
       <div className="space-y-4 p-4">
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="flex items-center gap-3 p-4">
             {profile.data?.picture ? (
               <img
@@ -71,10 +71,10 @@ export function ProfilePanel() {
                   className={[
                     "rounded-full px-1.5 py-0.5",
                     isError
-                      ? "bg-danger/15 text-danger"
+                      ? "bg-danger-soft text-danger"
                       : isLoading
                         ? "bg-surface-secondary text-muted"
-                        : "bg-success/15 text-success",
+                        : "bg-success-soft text-success",
                   ].join(" ")}
                 >
                   {isError ? "Offline" : isLoading ? "…" : "Live"}
@@ -89,7 +89,7 @@ export function ProfilePanel() {
           </Card.Content>
         </Card>
 
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="space-y-3 p-4">
             <div className="text-xs uppercase tracking-wider text-muted">Подписка</div>
             <div className="flex items-baseline justify-between">
@@ -107,7 +107,7 @@ export function ProfilePanel() {
           </Card.Content>
         </Card>
 
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="divide-y divide-border p-0">
             {MENU.map((m) => (
               <button

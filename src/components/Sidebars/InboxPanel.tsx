@@ -183,7 +183,7 @@ export function InboxPanel() {
                   <button
                     key={a.id}
                     onClick={() => void openAlert(a)}
-                    className="flex w-full items-start gap-3 rounded-2xl border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-surface-secondary"
+                    className="flex w-full items-start gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 text-left transition-colors hover:bg-surface-secondary"
                   >
                     {a.agentName ? (
                       <AgentAvatar name={a.agentName} size={32} />

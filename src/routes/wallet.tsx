@@ -103,7 +103,7 @@ function WalletPage() {
 
       {tab === "overview" ? (
         <>
-          <Card className="rounded-2xl">
+          <Card className="rounded-lg">
             <Card.Content className="grid gap-4 p-4 md:grid-cols-[1fr_auto] md:items-center md:gap-8">
               <div>
                 <div className="flex items-center gap-2 text-xs text-muted">
@@ -158,7 +158,7 @@ function WalletPage() {
                   onClick={() => setTab(acc.id)}
                   className="text-left"
                 >
-                  <Card className="rounded-2xl transition-colors hover:bg-surface-secondary">
+                  <Card className="rounded-lg transition-colors hover:bg-surface-secondary">
                     <Card.Content className="p-3">
                       <div className="flex items-center justify-between text-xs">
                         <span className="flex items-center gap-2">
@@ -187,7 +187,7 @@ function WalletPage() {
         />
       ) : null}
 
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <div className="flex flex-col gap-3 border-b border-border p-4 md:flex-row md:items-center">
           <h2 className="font-medium">
             Активы {tab !== "overview" ? `· ${activeAccount?.name}` : ""}
@@ -290,7 +290,7 @@ function SubAccountView({
   positions: ReturnType<typeof usePositions.getState>["positions"];
 }) {
   return (
-    <Card className="rounded-2xl">
+    <Card className="rounded-lg">
       <Card.Content className="space-y-4 p-4">
         <div className="flex items-center gap-3">
           <span className="inline-block size-3 rounded-full" style={{backgroundColor: account.color}} />

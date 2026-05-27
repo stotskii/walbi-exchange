@@ -30,7 +30,7 @@ export function ToastHost() {
             exit={{opacity: 0, scale: 0.97, transition: {duration: 0.12}}}
             transition={{type: "spring", damping: 24, stiffness: 320}}
             className={[
-              "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border bg-background/95 px-3 py-2.5 shadow-overlay backdrop-blur",
+              "pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg border bg-surface px-3 py-2.5 shadow-overlay",
               t.tone === "success"
                 ? "border-success/30"
                 : t.tone === "danger"

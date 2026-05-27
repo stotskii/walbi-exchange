@@ -29,7 +29,7 @@ export function AgentDetail() {
 
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto">
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <Card.Content className="space-y-3 p-4">
           <div className="flex items-center gap-3">
             <AgentAvatar name={agent.name} size={48} badge={agent.badge} />
@@ -44,7 +44,7 @@ export function AgentDetail() {
         </Card.Content>
       </Card>
 
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <Card.Content className="grid grid-cols-2 gap-3 p-4 text-xs">
           <Metric label="Баланс" value={`${usd(agent.balanceUsdt)} USDT`} />
           <Metric label="APR 30д" value={pct(agent.apr30d)} tone={agent.apr30d >= 0 ? "success" : "danger"} />
@@ -55,7 +55,7 @@ export function AgentDetail() {
         </Card.Content>
       </Card>
 
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <Card.Content className="space-y-2 p-4">
           <div className="text-xs uppercase tracking-wider text-muted">Параметры</div>
           <Param label="Тикеры" value="BTC, ETH, SOL" />
@@ -68,7 +68,7 @@ export function AgentDetail() {
         </Card.Content>
       </Card>
 
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <Card.Content className="space-y-2 p-4">
           <div className="text-xs uppercase tracking-wider text-muted">Дневной P/L</div>
           <div className="flex h-8 items-end gap-0.5">
@@ -144,7 +144,7 @@ function Overview() {
       <h2 className="px-1 text-xs font-semibold uppercase tracking-wider text-muted">
         Контекст
       </h2>
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <Card.Content className="space-y-3 p-4 text-sm">
           <Metric label="Баланс ИИ-агентов" value={`${usd(totalBalance)} USDT`} />
           <Metric
@@ -157,7 +157,7 @@ function Overview() {
         </Card.Content>
       </Card>
 
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <Card.Content className="space-y-2 p-4">
           <div className="text-xs uppercase tracking-wider text-muted">Лидеры дня</div>
           {AGENTS
@@ -176,7 +176,7 @@ function Overview() {
         </Card.Content>
       </Card>
 
-      <Card className="rounded-2xl border-accent/30 bg-accent/5">
+      <Card className="rounded-lg border-accent/30 bg-accent/5">
         <Card.Content className="p-4 text-sm">
           <div className="mb-1 font-medium">Мы нанимаем авторов стратегий</div>
           <p className="text-xs text-muted">

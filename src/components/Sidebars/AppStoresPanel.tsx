@@ -12,7 +12,7 @@ export function AppStoresPanel() {
           Сканируй QR-код или перейди в App Store / Google Play
         </p>
 
-        <div className="mx-auto grid size-48 place-items-center rounded-2xl bg-white p-4">
+        <div className="mx-auto grid size-48 place-items-center rounded-lg bg-white p-4">
           <Icon icon="gravity-ui:qr-code" className="size-full text-black" />
         </div>
 

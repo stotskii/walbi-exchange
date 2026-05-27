@@ -202,7 +202,7 @@ function SignalsPage() {
             >
               {t === "feed" ? "Лента" : "Позиции"}
               {t === "positions" && signalPositions.length > 0 ? (
-                <span className="rounded-full bg-accent/20 px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent">
                   {signalPositions.length}
                 </span>
               ) : null}
@@ -222,7 +222,7 @@ function SignalsPage() {
             />
           ))}
           {index >= all.length ? (
-            <Card className="absolute inset-x-0 top-0 rounded-2xl">
+            <Card className="absolute inset-x-0 top-0 rounded-lg">
               <Card.Content className="p-8 text-center">
                 <div className="text-4xl">🎉</div>
                 <div className="mt-2 font-medium">Сигналы закончились</div>
@@ -239,14 +239,14 @@ function SignalsPage() {
       ) : (
         <div className="space-y-2">
           {signalPositions.length === 0 ? (
-            <Card className="rounded-2xl">
+            <Card className="rounded-lg">
               <Card.Content className="p-8 text-center text-sm text-muted">
                 Открытых позиций по сигналам нет. Свайпни сигнал вправо чтобы открыть.
               </Card.Content>
             </Card>
           ) : (
             signalPositions.map((p) => (
-              <Card key={p.id} className="rounded-2xl">
+              <Card key={p.id} className="rounded-lg">
                 <Card.Content className="p-3">
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
@@ -326,7 +326,7 @@ function SwipeCard({
       }}
       className="absolute inset-x-0 top-0 cursor-grab active:cursor-grabbing"
     >
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <Card.Content className="relative space-y-3 p-4">
           <motion.div
             style={{opacity: longGlow}}
@@ -348,7 +348,7 @@ function SwipeCard({
               <div className="text-[10px] text-muted">{relativeTime(signal.postedAt)}</div>
             </div>
             {signal.autoTrade ? (
-              <span className="rounded-md bg-accent/15 px-2 py-0.5 text-[10px] text-accent">
+              <span className="rounded-md bg-accent-soft px-2 py-0.5 text-[10px] text-accent">
                 ✓ Авто-торговля
               </span>
             ) : null}

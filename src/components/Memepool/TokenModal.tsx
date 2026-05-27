@@ -119,9 +119,9 @@ export function TokenModal({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/60 backdrop-blur-sm md:items-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/60 md:items-center" onClick={onClose}>
       <div
-        className="walbi-fade-in flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl border border-border bg-background md:rounded-3xl"
+        className="walbi-fade-in flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-xl border border-border bg-background md:rounded-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center gap-3 border-b border-border p-4">

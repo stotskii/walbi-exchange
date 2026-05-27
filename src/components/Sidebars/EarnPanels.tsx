@@ -19,7 +19,7 @@ export function EarnHub() {
           <div className="mb-3 text-xs uppercase tracking-wider text-muted">
             Зарабатывайте
           </div>
-          <Card className="rounded-2xl">
+          <Card className="rounded-lg">
             <Card.Content className="divide-y divide-border p-0">
               <HubRow icon="gravity-ui:gift" title="Реферальная программа" hint="Активные рефералы · 0" onClick={() => drill("earn-referral")} />
               <HubRow icon="gravity-ui:hammer" title="Майнер" hint="Добытые баллы · 0,0000" onClick={() => drill("earn-miner")} />
@@ -37,7 +37,7 @@ export function EarnHub() {
           <div className="mb-2 text-xs uppercase tracking-wider text-muted">
             Активные задачи
           </div>
-          <Card className="rounded-2xl">
+          <Card className="rounded-lg">
             <Card.Content className="space-y-3 p-4">
               <div className="text-sm font-medium">Первый депозит</div>
               <p className="text-xs text-muted">
@@ -82,7 +82,7 @@ export function EarnReferral() {
   return (
     <PanelChrome title="Реферальная программа" showBack>
       <div className="space-y-4 p-4">
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="space-y-4 p-4 text-sm">
             <div>
               <div className="text-xs text-muted">Твой ID</div>
@@ -114,7 +114,7 @@ export function EarnReferral() {
           </Card.Content>
         </Card>
 
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="space-y-3 p-4">
             <div className="text-xs uppercase tracking-wider text-muted">Статистика</div>
             <Row k="Активных рефералов" v="0" />
@@ -122,7 +122,7 @@ export function EarnReferral() {
           </Card.Content>
         </Card>
 
-        <Card className="rounded-2xl border-accent/30 bg-accent/5">
+        <Card className="rounded-lg border-accent/30 bg-accent/5">
           <Card.Content className="space-y-2 p-4 text-sm">
             <div className="font-medium">Двухуровневая комиссия</div>
             <div className="flex items-center justify-between text-xs">
@@ -136,7 +136,7 @@ export function EarnReferral() {
           </Card.Content>
         </Card>
 
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="space-y-3 p-4">
             <div className="text-sm font-medium">Доступно к выводу</div>
             <div className="text-2xl font-semibold tabular-nums">0,0000 USDT</div>
@@ -162,7 +162,7 @@ export function EarnMiner() {
       <div className="grid place-items-center p-10 text-center">
         <Icon
           icon="gravity-ui:hammer"
-          className={["size-12", mining ? "animate-pulse text-accent" : "text-muted"].join(" ")}
+          className={["size-12", mining ? "text-accent" : "text-muted"].join(" ")}
         />
         <div className="mt-3 text-3xl font-bold tabular-nums">0</div>
         <div className="text-xs text-muted">{mining ? "добывается…" : "добытых баллов"}</div>
@@ -194,7 +194,7 @@ export function EarnVouchers() {
   return (
     <PanelChrome title="Ваучеры" showBack>
       <div className="p-4 text-sm">
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="space-y-3 p-4">
             <p className="text-muted">
               Ваучер позволяет получить возврат торговых комиссий прямо на ваш
@@ -234,7 +234,7 @@ export function EarnAirdrops() {
               setAirdrop(a.id);
               drill("earn-airdrop-detail");
             }}
-            className="block w-full rounded-2xl border border-border bg-surface p-3 text-left transition-colors hover:bg-surface-secondary"
+            className="block w-full rounded-lg border border-border bg-surface p-3 text-left transition-colors hover:bg-surface-secondary"
           >
             <div className="flex items-center justify-between">
               <div className="font-medium">{a.name}</div>
@@ -259,7 +259,7 @@ export function EarnAirdropDetail() {
   return (
     <PanelChrome title={airdrop.name} showBack>
       <div className="space-y-4 p-4 text-sm">
-        <Card className="rounded-2xl border-accent/30 bg-accent/5">
+        <Card className="rounded-lg border-accent/30 bg-accent/5">
           <Card.Content className="p-4">
             <div className="text-xs text-muted">Призовой фонд</div>
             <div className="mt-1 text-3xl font-semibold tabular-nums">
@@ -269,7 +269,7 @@ export function EarnAirdropDetail() {
           </Card.Content>
         </Card>
 
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="space-y-3 p-4">
             <div className="text-xs uppercase tracking-wider text-muted">Условия</div>
             <ol className="ml-4 list-decimal space-y-2 text-sm text-foreground/80">
@@ -280,7 +280,7 @@ export function EarnAirdropDetail() {
           </Card.Content>
         </Card>
 
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="space-y-2 p-4 text-xs">
             <Row k="Период" v={`${airdrop.startDate} — ${airdrop.endDate}`} />
             <Row k="Победителей" v="10 крупных + 50 случайных" />
@@ -321,7 +321,7 @@ export function EarnTasks() {
 
         <div className="space-y-2">
           {tasks.map((t) => (
-            <Card key={t.id} className="rounded-2xl">
+            <Card key={t.id} className="rounded-lg">
               <Card.Content className="flex items-start gap-3 p-3">
                 <div className="grid size-9 shrink-0 place-items-center rounded-xl bg-surface-secondary">
                   <Icon
@@ -385,7 +385,7 @@ function HubRow({
         <div className="text-[11px] text-muted">{hint}</div>
       </div>
       {badge ? (
-        <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium text-accent">
+        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-medium text-accent">
           {badge}
         </span>
       ) : null}

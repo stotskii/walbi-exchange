@@ -37,7 +37,7 @@ function EarnPage() {
         <h2 className="mb-3 text-sm uppercase tracking-wider text-muted">
           Зарабатывайте
         </h2>
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="divide-y divide-border p-0">
             <Row title="Реферальная программа" hint="Активные рефералы · 0" onClick={() => openPanel("earn-referral")} />
             <Row title="Майнер" hint="Добытые баллы · 0,0000" onClick={() => openPanel("earn-miner")} />
@@ -64,7 +64,7 @@ function HubCard({
 }) {
   return (
     <Link to={to} className="no-underline" preload="intent">
-      <Card className="rounded-2xl transition-colors hover:bg-surface-secondary">
+      <Card className="rounded-lg transition-colors hover:bg-surface-secondary">
         <Card.Content className="flex items-center gap-3 p-4">
           <div className="grid size-10 place-items-center rounded-xl bg-surface-secondary">
             <Icon icon={icon} className="size-5" />
@@ -100,7 +100,7 @@ function Row({
         <div className="text-xs text-muted">{hint}</div>
       </div>
       {badge ? (
-        <span className="rounded-full bg-accent/20 px-2 py-0.5 text-xs text-accent">
+        <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent">
           {badge}
         </span>
       ) : null}

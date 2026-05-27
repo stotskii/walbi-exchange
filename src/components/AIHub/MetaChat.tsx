@@ -131,7 +131,7 @@ export function MetaChat() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface">
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-border bg-surface">
       <div className="flex items-center gap-2 border-b border-border px-4 py-3">
         <AgentAvatar name="Мета чат" size={32} />
         <div className="flex-1">
@@ -215,7 +215,7 @@ function Bubble({message, showThinking}: {message: UiMessage; showThinking: bool
       <div className={["flex flex-col gap-1", isUser ? "items-end" : "items-start"].join(" ")}>
         <div
           className={[
-            "max-w-[480px] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm",
+            "max-w-[480px] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm",
             isUser
               ? "rounded-tr-sm bg-accent text-white"
               : "rounded-tl-sm bg-surface-secondary",

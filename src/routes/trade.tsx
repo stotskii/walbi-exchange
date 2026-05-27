@@ -33,7 +33,7 @@ function TradePage() {
       <PairStrip />
 
       {/* Top stat strip */}
-      <div className="hidden items-center gap-6 rounded-2xl bg-surface px-4 py-2 text-xs md:flex">
+      <div className="hidden items-center gap-6 rounded-lg bg-surface px-4 py-2 text-xs md:flex">
         <div>
           <div className="text-muted">Цена</div>
           <div className={["text-base font-semibold tabular-nums", up ? "text-success" : "text-danger"].join(" ")}>
@@ -57,7 +57,7 @@ function TradePage() {
 
       <div className="grid gap-2 md:grid-cols-[1fr_240px_300px]">
         {/* Chart */}
-        <Card className="overflow-hidden rounded-2xl">
+        <Card className="overflow-hidden rounded-lg">
           <div className="flex items-center gap-1 border-b border-border px-3 py-1.5 text-[11px] text-muted">
             {TIMEFRAMES.map((t) => (
               <button
@@ -99,7 +99,7 @@ function TradePage() {
         </Card>
 
         {/* Order book */}
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <div className="flex items-center justify-between px-3 pt-3 text-xs text-muted">
             <span>Стакан</span>
             <span className="text-muted">0.01</span>
@@ -110,7 +110,7 @@ function TradePage() {
         </Card>
 
         {/* Order form */}
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <div className="border-b border-border px-3 py-2 text-sm">Открыть позицию</div>
           <div className="p-3">
             <OrderForm pair={pair} />
@@ -119,7 +119,7 @@ function TradePage() {
       </div>
 
       {/* Positions / Orders / History */}
-      <Card className="overflow-hidden rounded-2xl">
+      <Card className="overflow-hidden rounded-lg">
         <PositionsTable />
       </Card>
     </div>

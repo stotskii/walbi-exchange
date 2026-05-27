@@ -1,20 +1,19 @@
 import {Link, useLocation, useNavigate} from "@tanstack/react-router";
-import {Button} from "@heroui/react";
 import {Icon} from "@iconify/react";
 
 import {useUI} from "../../store/ui";
 import {useToasts} from "../../store/toast";
 
-// Desktop topbar. Matches Walbi's 6-button paradigm plus deposit CTA and
-// topbar icons (Earn / Inbox / AppStores / Profile).
+// Topbar — editorial dense, not SaaS-template.  No gradients, no rounded-lg,
+// monospace wordmark, typographic active state (low-key bottom rule, not pill).
 
 const NAV = [
-  {to: "/", label: "AI хаб"},
+  {to: "/", label: "Хаб"},
   {to: "/signals", label: "Сигналы"},
-  {to: "/trade", label: "Торговля"},
+  {to: "/trade", label: "Терминал"},
   {to: "/memepool", label: "Мемепул"},
   {to: "/predictions", label: "Прогнозы"},
-  {to: "/wallet", label: "Кошелек"},
+  {to: "/wallet", label: "Счета"},
 ] as const;
 
 export function Topbar() {
@@ -25,33 +24,29 @@ export function Topbar() {
 
   function depositCta() {
     if (pathname === "/wallet") {
-      // already on wallet — nudge user to action button
-      push({title: "Жми «Депозит» в карточке баланса ↓", tone: "info", ttl: 3000});
+      push({title: "Жми «Депозит» в карточке счёта ↓", tone: "info", ttl: 3000});
       return;
     }
-    navigate({to: "/wallet"}).then(() => {
-      // Wallet auto-opens via URL param convention; for simplicity we just
-      // route there and the user clicks the deposit chip. Could push a
-      // global "openWalletAction" event but keeping it minimal.
-      push({title: "Нажми «Депозит» в карточке баланса", tone: "info", ttl: 3000});
+    void navigate({to: "/wallet"}).then(() => {
+      push({title: "Открой «Депозит» в карточке счёта", tone: "info", ttl: 3000});
     });
   }
 
   return (
-    <header className="sticky top-0 z-30 hidden h-14 shrink-0 border-b border-border bg-background/85 backdrop-blur md:flex">
-      <div className="mx-auto flex w-full max-w-screen-2xl items-center gap-1 px-4">
+    <header className="sticky top-0 z-30 hidden h-12 shrink-0 border-b border-separator bg-background md:flex">
+      <div className="mx-auto flex w-full max-w-screen-2xl items-center gap-6 px-5">
+        {/* Wordmark — monospace, no gradient, no logo-tile */}
         <Link
           to="/"
-          className="mr-3 flex items-center gap-2 text-sm font-semibold tracking-tight no-underline"
+          className="flex items-baseline gap-1.5 font-mono text-[13px] tracking-tight no-underline"
           aria-label="Walbi Exchange home"
         >
-          <span className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-accent to-purple-600 text-xs font-bold text-white">
-            W
-          </span>
-          <span>Walbi</span>
+          <span className="text-foreground">walbi</span>
+          <span className="text-accent">/</span>
+          <span className="text-mute-2">exchange</span>
         </Link>
 
-        <nav className="flex items-center gap-0.5">
+        <nav className="flex items-center gap-5">
           {NAV.map((item) => {
             const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
             return (
@@ -60,28 +55,37 @@ export function Topbar() {
                 to={item.to}
                 preload="intent"
                 className={[
-                  "rounded-xl px-3 py-1.5 text-sm transition-colors no-underline",
-                  active
-                    ? "bg-surface-secondary text-foreground"
-                    : "text-muted hover:bg-surface hover:text-foreground",
+                  "relative py-1 text-[13px] no-underline transition-colors",
+                  active ? "text-foreground" : "text-mute-2 hover:text-foreground",
                 ].join(" ")}
               >
                 {item.label}
+                {active ? (
+                  <span className="absolute inset-x-0 -bottom-[13px] h-px bg-accent" />
+                ) : null}
               </Link>
             );
           })}
         </nav>
 
-        <Button variant="primary" size="sm" className="ml-3" onPress={depositCta}>
-          <Icon icon="gravity-ui:arrow-down-to-line" className="mr-1.5" />
+        <button
+          onClick={depositCta}
+          className="ml-3 flex items-center gap-1.5 rounded-sm bg-foreground px-2.5 py-1 text-[12px] font-medium text-ink-12 transition-opacity hover:opacity-90"
+        >
+          <Icon icon="ph:arrow-down-bold" className="size-3" />
           Депозит
-        </Button>
+        </button>
 
-        <div className="ml-auto flex items-center gap-0.5">
-          <IconBtn icon="gravity-ui:bolt" label="Экшены" onClick={() => openPanel("earn")} />
-          <IconBtn icon="gravity-ui:bell" label="Уведомления" onClick={() => openPanel("inbox")} badge={3} />
-          <IconBtn icon="gravity-ui:devices" label="Мобильное приложение" onClick={() => openPanel("app-stores")} />
-          <IconBtn icon="gravity-ui:person" label="Профиль" onClick={() => openPanel("profile")} />
+        <div className="ml-auto flex items-center gap-1 font-mono text-[11px] text-mute-2">
+          <span className="live-dot" aria-hidden />
+          <span>live</span>
+        </div>
+
+        <div className="flex items-center gap-0.5">
+          <IconBtn icon="ph:lightning-bold" label="Экшены" onClick={() => openPanel("earn")} />
+          <IconBtn icon="ph:bell-bold" label="Уведомления" onClick={() => openPanel("inbox")} badge={3} />
+          <IconBtn icon="ph:device-mobile-bold" label="Мобильное" onClick={() => openPanel("app-stores")} />
+          <IconBtn icon="ph:user-bold" label="Профиль" onClick={() => openPanel("profile")} />
         </div>
       </div>
     </header>
@@ -104,11 +108,11 @@ function IconBtn({
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="relative grid size-9 place-items-center rounded-xl text-muted transition-colors hover:bg-surface-secondary hover:text-foreground"
+      className="relative grid size-8 place-items-center rounded-sm text-mute-2 transition-colors hover:bg-surface hover:text-foreground"
     >
-      <Icon icon={icon} className="size-4" />
+      <Icon icon={icon} className="size-[15px]" />
       {badge ? (
-        <span className="absolute right-1 top-1 grid size-4 place-items-center rounded-full bg-accent text-[9px] font-bold text-white">
+        <span className="absolute right-0.5 top-0.5 grid min-w-[14px] place-items-center rounded-full bg-accent px-1 text-[9px] font-medium leading-[14px] text-accent-foreground">
           {badge > 9 ? "9+" : badge}
         </span>
       ) : null}

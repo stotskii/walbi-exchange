@@ -99,11 +99,11 @@ function MemepoolPage() {
       </header>
 
       {tokens.isLoading ? (
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="p-8 text-center text-sm text-muted">Загрузка токенов…</Card.Content>
         </Card>
       ) : tokens.isError ? (
-        <Card className="rounded-2xl">
+        <Card className="rounded-lg">
           <Card.Content className="p-8 text-center text-sm text-danger">
             Не удалось загрузить мемепул
           </Card.Content>
@@ -136,7 +136,7 @@ function MemepoolPage() {
         </section>
       ) : null}
 
-      <Card className="rounded-2xl" id="memepool-popular">
+      <Card className="rounded-lg" id="memepool-popular">
         <div className="flex flex-col gap-3 border-b border-border p-4 md:flex-row md:items-center">
           <h2 className="text-sm font-medium">Популярные</h2>
 
@@ -260,7 +260,7 @@ function TrendCard({
   return (
     <button
       onClick={onClick}
-      className="group flex w-44 shrink-0 flex-col gap-2 rounded-2xl border border-border bg-surface p-3 text-left transition-colors hover:bg-surface-secondary"
+      className="group flex w-44 shrink-0 flex-col gap-2 rounded-lg border border-border bg-surface p-3 text-left transition-colors hover:bg-surface-secondary"
     >
       <div className="flex items-center gap-2">
         {icon ? (

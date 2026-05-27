@@ -64,7 +64,7 @@ export function AgentsList() {
         </button>
       </div>
 
-      <Card className="rounded-2xl">
+      <Card className="rounded-lg">
         <Card.Content className="p-2">
           <Button
             variant="primary"

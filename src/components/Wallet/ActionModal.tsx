@@ -26,7 +26,7 @@ export function ActionModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 md:items-center" onClick={onClose}>
       <div
-        className="walbi-fade-in flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-border bg-background md:rounded-3xl"
+        className="walbi-fade-in flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-xl border border-border bg-background md:rounded-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between border-b border-border p-4">
